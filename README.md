@@ -58,9 +58,13 @@ Then, for each card:
 
 A card you miss comes back later in the round as a second try. The results screen shows your first-try score and every card to review.
 
-**Settings** lets you choose the forms, verb groups and number of cards per round, and show or hide readings. Choose **Start new round** to apply your choices. Your settings are saved in this browser.
+**Settings** lets you choose the forms, verb groups and number of cards per round. Choose **Start new round** to apply those choices. Your settings are saved in this browser.
+
+Under **Show on cards** in Settings, you can show or hide the kana reading, the translation and the verb group (Godan, Ichidan, Irregular or Noun + する). These changes apply right away, and anything hidden appears after you check your answer.
 
 To add verbs you have studied since, rerun the export and the verb list script, then reload the page.
+
+Renshuu only defines the noun in a noun + する verb, so 携帯 is "téléphone portable" while 携帯する means "porter sur soi". The verb meanings shown on cards come from a hand-written table, [`scripts/suru_meanings.json`](scripts/suru_meanings.json). A word missing from the table shows its own definition after `sans する :`, and the verb list script names it so you can add it.
 
 ## Working on the drill
 

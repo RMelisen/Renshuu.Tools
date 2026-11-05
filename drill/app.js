@@ -6,7 +6,10 @@ const DEFAULTS = {
   groups: ["godan", "ichidan", "irregular"],
   length: 20,
   showReading: true,
+  showMeaning: true,
+  showGroup: true,
 };
+const CARD_DETAILS = { showReading: "Kana reading", showMeaning: "Translation", showGroup: "Verb group" };
 const LENGTHS = [10, 20, 40];
 const CELLS_PER_ROW = 10;
 
@@ -62,6 +65,7 @@ function makeExercise(verb, formId) {
       sub: kanaLead ? verb.kanji : verb.reading,
       subIsReading: !kanaLead,
       defs: verb.defs.join(" ; "),
+      group: GROUPS[groupOf(verb)],
     },
     answer: {
       main: answerInKanji ? result.kanji : result.kana,
@@ -102,8 +106,7 @@ function showNext() {
 
   const card = round.current;
   $("verb-main").textContent = card.cue.main;
-  $("verb-defs").textContent = card.cue.defs;
-  renderSub();
+  renderCue();
   $("form-label").textContent = card.prompt.label;
   $("form-ending").textContent = card.prompt.ending;
   $("retry-tag").hidden = !card.retry;
@@ -121,11 +124,19 @@ function showNext() {
   input.focus({ preventScroll: true });
 }
 
-function renderSub() {
+// A detail hidden in Settings comes back once the card is answered, so the guess
+// can be checked. Concealing keeps its space, so the answer squares never jump.
+function renderCue() {
   if (!round?.current) return;
-  const { sub, subIsReading } = round.current.cue;
-  $("verb-sub").textContent = sub;
-  $("verb-sub").hidden = !sub || (subIsReading && !settings.showReading);
+  const { sub, subIsReading, defs, group } = round.current.cue;
+  const show = (id, text, wanted) => {
+    $(id).textContent = text;
+    $(id).hidden = !text;
+    $(id).classList.toggle("concealed", !wanted && !round.answered);
+  };
+  show("verb-sub", sub, !subIsReading || settings.showReading);
+  show("verb-defs", defs, settings.showMeaning);
+  show("verb-group", group, settings.showGroup);
 }
 
 function setHint(message) {
@@ -232,6 +243,7 @@ function grade({ gaveUp }) {
     round.queue.splice(Math.min(gap, round.queue.length), 0, card);
   }
 
+  renderCue();
   renderCells();
   if (!gaveUp) drawMark(right);
   renderFeedback(card, right, gaveUp);
@@ -343,7 +355,11 @@ function buildSettings() {
       checked: settings.length === length, text: String(length),
     });
   }
-  $("set-reading").checked = settings.showReading;
+  for (const [key, text] of Object.entries(CARD_DETAILS)) {
+    buildChoice($("set-details"), {
+      type: "checkbox", name: "detail", value: key, checked: settings[key], text,
+    });
+  }
 }
 
 function readChoices(name) {
@@ -378,10 +394,10 @@ function wireEvents() {
   });
 
   $("settings-toggle").addEventListener("click", () => toggleSettings($("settings").hidden));
-  $("set-reading").addEventListener("change", (event) => {
-    settings.showReading = event.target.checked;
+  $("set-details").addEventListener("change", (event) => {
+    settings[event.target.value] = event.target.checked;
     saveSettings();
-    renderSub();
+    renderCue();
   });
   $("settings").addEventListener("submit", (event) => {
     event.preventDefault();

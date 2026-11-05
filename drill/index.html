@@ -18,7 +18,10 @@
     <fieldset id="set-forms"><legend>Forms</legend></fieldset>
     <fieldset id="set-groups"><legend>Verb groups</legend></fieldset>
     <fieldset id="set-length"><legend>Cards per round</legend></fieldset>
-    <label class="check"><input type="checkbox" id="set-reading"> Show readings on verbs</label>
+    <div class="details">
+      <fieldset id="set-details"><legend>Show on cards</legend></fieldset>
+      <p class="hint">Changes apply right away. Anything hidden appears after you check your answer.</p>
+    </div>
     <p id="settings-error" class="pen" role="alert" hidden>Choose at least one form and one verb group.</p>
     <div class="actions"><button type="submit" class="solid" id="settings-start">Start new round</button></div>
   </form>
@@ -34,7 +37,10 @@
 
       <div class="cue">
         <p id="verb-main" class="verb" lang="ja"></p>
-        <p id="verb-sub" class="reading" lang="ja"></p>
+        <div class="cue-line">
+          <p id="verb-sub" class="reading" lang="ja"></p>
+          <p id="verb-group" class="kind"></p>
+        </div>
         <p id="verb-defs" class="defs" lang="fr"></p>
       </div>
 

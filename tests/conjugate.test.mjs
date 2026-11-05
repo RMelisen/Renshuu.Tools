@@ -100,7 +100,25 @@ test("ある counts as irregular for filtering", () => {
   assert.equal(groupOf(verb("帰る", "かえる", "godan-る")), "godan");
 });
 
+const meanings = JSON.parse(readFileSync(new URL("../scripts/suru_meanings.json", import.meta.url), "utf-8"));
+
+test("every noun + する meaning in the table has text", () => {
+  for (const [noun, meaning] of Object.entries(meanings)) {
+    assert.ok(meaning.trim(), noun);
+  }
+});
+
 const data = new URL("../drill/verbs.json", import.meta.url);
+test("noun + する verbs show the verb's meaning, or say it describes the word alone", { skip: !existsSync(data) && "verbs.json not generated" }, () => {
+  const verbs = JSON.parse(readFileSync(data, "utf-8")).filter((v) => v.class === "suru-noun");
+  assert.ok(verbs.length > 0);
+  for (const v of verbs) {
+    const noun = (v.kanji || v.reading).replace(/する$/, "");
+    if (meanings[noun]) assert.deepEqual(v.defs, [meanings[noun]], noun);
+    else assert.ok(v.defs[0].startsWith("sans する : "), noun);
+  }
+});
+
 test("every generated verb yields all forms", { skip: !existsSync(data) && "verbs.json not generated" }, () => {
   const verbs = JSON.parse(readFileSync(data, "utf-8"));
   assert.ok(verbs.length > 0);

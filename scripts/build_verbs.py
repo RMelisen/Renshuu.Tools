@@ -15,6 +15,11 @@ ROOT = Path(__file__).resolve().parent.parent
 SOURCE = ROOT / "renshuu_export.json"
 TARGET = ROOT / "drill" / "verbs.json"
 
+# The export defines 携帯 as "téléphone portable", which is wrong for 携帯する.
+# This hand-written table holds the verb's meaning, keyed by the export's spelling.
+SURU_MEANINGS = json.loads((ROOT / "scripts" / "suru_meanings.json").read_text(encoding="utf-8"))
+NO_VERB_MEANING = "sans する : "  # marks a definition that describes the word alone
+
 
 def classify(typeofspeech):
     """Map Renshuu's part-of-speech label to a verb class, or None if not a verb.
@@ -48,7 +53,10 @@ def is_known(term):
 def to_entry(term, verb_class):
     kanji = term.get("kanji_full") or ""
     reading = term["hiragana_full"]
+    defs = term["def"][:2]
     if verb_class == "suru-noun":  # the export stores the noun alone
+        meaning = SURU_MEANINGS.get(kanji or reading)
+        defs = [meaning] if meaning else [NO_VERB_MEANING + defs[0], *defs[1:]]
         kanji = f"{kanji}する" if kanji else ""
         reading = f"{reading}する"
     return {
@@ -56,7 +64,7 @@ def to_entry(term, verb_class):
         "kanji": kanji,
         "reading": reading,
         "class": verb_class,
-        "defs": term["def"][:2],
+        "defs": defs,
         "kanaFirst": "common-hiragana" in term.get("config", []),
     }
 
@@ -91,6 +99,10 @@ def main():
     for name, count in sorted(collections.Counter(v["class"] for v in verbs).items()):
         print(f"{name:12} {count}")
     print(f"{'total':12} {len(verbs)}  -> {TARGET.relative_to(ROOT)}")
+
+    missing = [v["reading"] for v in verbs if v["defs"][0].startswith(NO_VERB_MEANING)]
+    if missing:
+        print(f"No verb meaning in scripts/suru_meanings.json yet: {', '.join(missing)}")
 
 
 if __name__ == "__main__":
