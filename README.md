@@ -60,7 +60,7 @@ A card you miss comes back later in the round as a second try. The results scree
 
 **Settings** lets you choose the forms, verb groups and number of cards per round. Choose **Start new round** to apply those choices. Your settings are saved in this browser.
 
-Under **Show on cards** in Settings, you can show or hide the kana reading, the translation and the verb group (Godan, Ichidan, Irregular or Noun + する). These changes apply right away, and anything hidden appears after you check your answer.
+Under **Show on cards** in Settings, you can show or hide the kana reading, the translation and the verb group (Godan, Ichidan, Irregular or Noun + する). These changes apply right away, and anything hidden appears after you check your answer. The small **Kana**, **Translation** and **Group** buttons above each card change the same settings without opening Settings. A crossed-out button means that detail is hidden.
 
 To add verbs you have studied since, rerun the export and the verb list script, then reload the page.
 

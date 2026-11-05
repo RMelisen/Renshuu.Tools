@@ -104,7 +104,26 @@ button { font: inherit; color: inherit; cursor: pointer; }
 
 /* Progress: one small square per card */
 .progress { display: grid; gap: 0.35rem; }
-#progress { color: var(--soft); font-size: 0.875rem; font-variant-numeric: tabular-nums; }
+.progress-line { display: flex; align-items: center; justify-content: space-between; gap: 0.75rem; }
+#progress { min-width: 0; color: var(--soft); font-size: 0.875rem; font-variant-numeric: tabular-nums; }
+/* On narrow phones "to retry" wraps the count onto a second line, so keep room for
+   it and the answer squares don't jump when it appears. */
+@media (max-width: 23rem) { .progress-line { min-height: 2.8rem; } }
+.quick { flex: none; display: flex; gap: 0.25rem; }
+.quick button {
+  min-height: 1.75rem;
+  padding: 0 0.4rem;
+  background: none;
+  border: 1px solid var(--rule);
+  font-size: 0.75rem;
+  line-height: 1;
+}
+.quick button[aria-pressed="false"] {
+  border-color: var(--rule-faint);
+  color: var(--soft);
+  text-decoration: line-through;
+}
+.quick button:hover { border-color: var(--ink); }
 .strip { display: flex; flex-wrap: wrap; gap: 3px; }
 .strip i { width: 0.75rem; height: 0.75rem; border: 1px solid var(--rule-faint); }
 .strip i.now { border-color: var(--ink); border-width: 2px; }

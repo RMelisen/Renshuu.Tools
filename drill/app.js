@@ -9,7 +9,11 @@ const DEFAULTS = {
   showMeaning: true,
   showGroup: true,
 };
-const CARD_DETAILS = { showReading: "Kana reading", showMeaning: "Translation", showGroup: "Verb group" };
+const CARD_DETAILS = {
+  showReading: { text: "Kana reading", short: "Kana" },
+  showMeaning: { text: "Translation", short: "Translation" },
+  showGroup: { text: "Verb group", short: "Group" },
+};
 const LENGTHS = [10, 20, 40];
 const CELLS_PER_ROW = 10;
 
@@ -137,6 +141,21 @@ function renderCue() {
   show("verb-sub", sub, !subIsReading || settings.showReading);
   show("verb-defs", defs, settings.showMeaning);
   show("verb-group", group, settings.showGroup);
+}
+
+// The Settings checkboxes and the buttons on the card change the same settings.
+function setDetail(key, on) {
+  settings[key] = on;
+  saveSettings();
+  renderDetailControls();
+  renderCue();
+}
+
+function renderDetailControls() {
+  for (const key of Object.keys(CARD_DETAILS)) {
+    $(`detail-${key}`).checked = settings[key];
+    $(`quick-${key}`).setAttribute("aria-pressed", String(settings[key]));
+  }
 }
 
 function setHint(message) {
@@ -355,11 +374,19 @@ function buildSettings() {
       checked: settings.length === length, text: String(length),
     });
   }
-  for (const [key, text] of Object.entries(CARD_DETAILS)) {
+  for (const [key, { text, short }] of Object.entries(CARD_DETAILS)) {
     buildChoice($("set-details"), {
       type: "checkbox", name: "detail", value: key, checked: settings[key], text,
     });
+    const button = document.createElement("button");
+    button.type = "button";
+    button.id = `quick-${key}`;
+    button.dataset.detail = key;
+    button.title = text;
+    button.textContent = short;
+    $("quick-details").append(button);
   }
+  renderDetailControls();
 }
 
 function readChoices(name) {
@@ -395,9 +422,13 @@ function wireEvents() {
 
   $("settings-toggle").addEventListener("click", () => toggleSettings($("settings").hidden));
   $("set-details").addEventListener("change", (event) => {
-    settings[event.target.value] = event.target.checked;
-    saveSettings();
-    renderCue();
+    setDetail(event.target.value, event.target.checked);
+  });
+  // Clicking a button leaves the cursor in the answer, so typing carries on.
+  $("quick-details").addEventListener("mousedown", (event) => event.preventDefault());
+  $("quick-details").addEventListener("click", (event) => {
+    const key = event.target.closest("button")?.dataset.detail;
+    if (key) setDetail(key, !settings[key]);
   });
   $("settings").addEventListener("submit", (event) => {
     event.preventDefault();
