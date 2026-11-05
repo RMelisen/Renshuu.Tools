@@ -3,7 +3,7 @@ import { CHEATSHEET, conjugate, FORMS, GODAN_ROWS, GROUPS, groupOf, isCorrect, n
 const STORAGE_KEY = "doshi-drill-settings";
 const DEFAULTS = {
   forms: Object.keys(FORMS),
-  groups: ["godan", "ichidan", "irregular"],
+  groups: Object.keys(GROUPS),
   length: 20,
   showReading: true,
   showMeaning: true,
