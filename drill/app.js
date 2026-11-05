@@ -27,7 +27,13 @@ const PALETTES = {
   aurore: "Aurore",
   nineties: "Pastels années 90",
 };
-const FONTS = { pop: "Mochiy Pop", rounded: "M PLUS Rounded" };
+const FONTS = {
+  pop: "Mochiy Pop",
+  zen: "Zen Maru Gothic",
+  kiwi: "Kiwi Maru",
+  kosugi: "Kosugi Maru",
+  rocknroll: "RocknRoll One",
+};
 const HIT_SOUNDS = {
   right: ["正解！", "やった！", "すごい！", "完璧！"],
   missed: ["残念", "あれ？", "おしい！", "もう一回"],

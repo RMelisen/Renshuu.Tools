@@ -62,15 +62,23 @@
   color-scheme: dark;
 }
 
-/* Type: one family for everything, chosen in Settings. */
+/* Type: one family for everything, chosen in Settings. A kanji missing from the
+   chosen font falls back to Zen Maru Gothic, then to the system's rounded font. */
 :root {
-  --type-pop: "Mochiy Pop One", "M PLUS Rounded 1c", "Hiragino Maru Gothic ProN", "Yu Gothic", system-ui, sans-serif;
-  --type-rounded: "M PLUS Rounded 1c", "Hiragino Maru Gothic ProN", "Yu Gothic", system-ui, sans-serif;
+  --type-fallback: "Zen Maru Gothic", "Hiragino Maru Gothic ProN", "Yu Gothic", system-ui, sans-serif;
+  --type-pop: "Mochiy Pop One", var(--type-fallback);
+  --type-zen: var(--type-fallback);
+  --type-kiwi: "Kiwi Maru", var(--type-fallback);
+  --type-kosugi: "Kosugi Maru", var(--type-fallback);
+  --type-rocknroll: "RocknRoll One", var(--type-fallback);
   --type: var(--type-pop);
   --regular: 400;
   --strong: 400;
 }
-:root[data-font="rounded"] { --type: var(--type-rounded); --regular: 500; --strong: 800; }
+:root[data-font="zen"] { --type: var(--type-zen); --regular: 500; --strong: 900; }
+:root[data-font="kiwi"] { --type: var(--type-kiwi); --regular: 500; --strong: 500; }
+:root[data-font="kosugi"] { --type: var(--type-kosugi); }
+:root[data-font="rocknroll"] { --type: var(--type-rocknroll); }
 
 *, *::before, *::after { box-sizing: border-box; }
 [hidden] { display: none !important; }
@@ -144,7 +152,10 @@ button { font: inherit; color: inherit; cursor: pointer; }
 .count { color: var(--soft); font-variant-numeric: tabular-nums; }
 .details { display: grid; gap: 0.25rem; }
 .sample-pop { font-family: var(--type-pop); font-weight: 400; }
-.sample-rounded { font-family: var(--type-rounded); font-weight: 800; }
+.sample-zen { font-family: var(--type-zen); font-weight: 900; }
+.sample-kiwi { font-family: var(--type-kiwi); font-weight: 500; }
+.sample-kosugi { font-family: var(--type-kosugi); font-weight: 400; }
+.sample-rocknroll { font-family: var(--type-rocknroll); font-weight: 400; }
 .swatch { display: inline-flex; gap: 2px; }
 .swatch i { width: 0.7rem; height: 0.7rem; border-radius: 50%; border: 1px solid var(--ink); }
 .swatch i:nth-child(1) { background: var(--ground); }
