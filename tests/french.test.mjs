@@ -83,14 +83,80 @@ const TABLE = [
 
 test("meanings conjugate in the first person, affirmative and negative", () => {
   for (const [meaning, affirmative, negative] of TABLE) {
-    assert.equal(conjugateFrench(meaning, false), affirmative, meaning);
-    assert.equal(conjugateFrench(meaning, true), negative, meaning);
+    assert.equal(conjugateFrench(meaning, { negative: false }), affirmative, meaning);
+    assert.equal(conjugateFrench(meaning, { negative: true }), negative, meaning);
+  }
+});
+
+// meaning, past, past negative
+const PAST_TABLE = [
+  // avoir, with the participle of each verb family
+  ["manger", "j'ai mangé", "je n'ai pas mangé"],
+  ["acheter", "j'ai acheté", "je n'ai pas acheté"],
+  ["étudier", "j'ai étudié", "je n'ai pas étudié"],
+  ["choisir", "j'ai choisi", "je n'ai pas choisi"],
+  ["dormir", "j'ai dormi", "je n'ai pas dormi"],
+  ["attendre", "j'ai attendu", "je n'ai pas attendu"],
+  ["vendre", "j'ai vendu", "je n'ai pas vendu"],
+  ["boire", "j'ai bu", "je n'ai pas bu"],
+  ["croire", "j'ai cru", "je n'ai pas cru"],
+  ["écrire", "j'ai écrit", "je n'ai pas écrit"],
+  ["dire", "j'ai dit", "je n'ai pas dit"],
+  ["lire", "j'ai lu", "je n'ai pas lu"],
+  ["rire", "j'ai ri", "je n'ai pas ri"],
+  ["faire", "j'ai fait", "je n'ai pas fait"],
+  ["voir", "j'ai vu", "je n'ai pas vu"],
+  ["prendre", "j'ai pris", "je n'ai pas pris"],
+  ["comprendre", "j'ai compris", "je n'ai pas compris"],
+  ["mettre", "j'ai mis", "je n'ai pas mis"],
+  ["connaître", "j'ai connu", "je n'ai pas connu"],
+  ["ouvrir", "j'ai ouvert", "je n'ai pas ouvert"],
+  ["courir", "j'ai couru", "je n'ai pas couru"],
+  ["savoir", "j'ai su", "je n'ai pas su"],
+  ["vivre", "j'ai vécu", "je n'ai pas vécu"],
+  ["recevoir", "j'ai reçu", "je n'ai pas reçu"],
+  // être, for the verbs of movement and change of state
+  ["aller", "je suis allé", "je ne suis pas allé"],
+  ["venir", "je suis venu", "je ne suis pas venu"],
+  ["devenir", "je suis devenu", "je ne suis pas devenu"],
+  ["partir", "je suis parti", "je ne suis pas parti"],
+  ["sortir", "je suis sorti", "je ne suis pas sorti"],
+  ["rentrer", "je suis rentré", "je ne suis pas rentré"],
+  ["entrer", "je suis entré", "je ne suis pas entré"],
+  ["arriver à", "je suis arrivé", "je ne suis pas arrivé"],
+  ["monter dans", "je suis monté", "je ne suis pas monté"],
+  ["mourir", "je suis mort", "je ne suis pas mort"],
+  // pronominal verbs always take être
+  ["se lever", "je me suis levé", "je ne me suis pas levé"],
+  ["se marier", "je me suis marié", "je ne me suis pas marié"],
+  ["s'asseoir", "je me suis assis", "je ne me suis pas assis"],
+  ["s'entraîner", "je me suis entraîné", "je ne me suis pas entraîné"],
+  ["se mettre en colère", "je me suis mis en colère", "je ne me suis pas mis en colère"],
+  // states read better in the imperfect
+  ["être", "j'étais", "je n'étais pas"],
+  ["être absent", "j'étais absent", "je n'étais pas absent"],
+  ["avoir faim", "j'avais faim", "je n'avais pas faim"],
+  // expressions
+  ["prendre son temps", "j'ai pris mon temps", "je n'ai pas pris mon temps"],
+  ["poser une question", "j'ai posé une question", "je n'ai pas posé de question"],
+  ["jouer à", "j'ai joué", "je n'ai pas joué"],
+  // verbs that don't take "je"
+  ["pleuvoir", "il a plu", "il n'a pas plu"],
+  ["neiger", "il a neigé", "il n'a pas neigé"],
+  ["signifier", "cela a signifié", "cela n'a pas signifié"],
+];
+
+test("past meanings conjugate in the passé composé", () => {
+  for (const [meaning, affirmative, negative] of PAST_TABLE) {
+    assert.equal(conjugateFrench(meaning, { past: true, negative: false }), affirmative, meaning);
+    assert.equal(conjugateFrench(meaning, { past: true, negative: true }), negative, meaning);
   }
 });
 
 test("text that is not an infinitive gives no translation", () => {
-  assert.equal(conjugateFrench("téléphone portable", false), null);
-  assert.equal(conjugateFrench("", false), null);
+  assert.equal(conjugateFrench("téléphone portable", { negative: false }), null);
+  assert.equal(conjugateFrench("téléphone portable", { past: true }), null);
+  assert.equal(conjugateFrench("", { negative: false }), null);
 });
 
 test("the first meaning is the first synonym, without its notes", () => {
@@ -108,12 +174,18 @@ test("translate follows the form: polite and plain read the same", () => {
   assert.equal(translate(kaku, "polite-affirmative"), "j'écris");
   assert.equal(translate(kaku, "polite-negative"), "je n'écris pas");
   assert.equal(translate(kaku, "plain-negative"), "je n'écris pas");
+  assert.equal(translate(kaku, "plain-past"), "j'ai écrit");
+  assert.equal(translate(kaku, "polite-past"), "j'ai écrit");
+  assert.equal(translate(kaku, "plain-past-negative"), "je n'ai pas écrit");
+  assert.equal(translate(kaku, "polite-past-negative"), "je n'ai pas écrit");
 });
 
 test("ある translates as il y a, whatever its definition says", () => {
   const aru = verb(["être (pour les objets), exister"], "ある", "godan-る");
   assert.equal(translate(aru, "polite-affirmative"), "il y a");
   assert.equal(translate(aru, "polite-negative"), "il n'y a pas");
+  assert.equal(translate(aru, "plain-past"), "il y avait");
+  assert.equal(translate(aru, "polite-past-negative"), "il n'y avait pas");
 });
 
 test("a noun + する verb with no verb meaning has no translation", () => {
@@ -121,9 +193,11 @@ test("a noun + する verb with no verb meaning has no translation", () => {
   assert.equal(translate(noun, "polite-affirmative"), null);
 });
 
-test("every form says whether it is negative", () => {
+test("every form says whether it is negative and past, and has a name under its tense", () => {
   for (const [id, form] of Object.entries(FORMS)) {
     assert.equal(typeof form.negative, "boolean", id);
+    assert.equal(typeof form.past, "boolean", id);
+    assert.ok(form.short, id);
   }
 });
 

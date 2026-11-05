@@ -37,6 +37,66 @@ test("kana forms match the reference table", () => {
   }
 });
 
+// verb, plain past, plain past negative, polite past, polite past negative
+const PAST_TABLE = [
+  [verb("買う", "かう", "godan-う"), "かった", "かわなかった", "かいました", "かいませんでした"],
+  [verb("書く", "かく", "godan-く"), "かいた", "かかなかった", "かきました", "かきませんでした"],
+  [verb("泳ぐ", "およぐ", "godan-ぐ"), "およいだ", "およがなかった", "およぎました", "およぎませんでした"],
+  [verb("話す", "はなす", "godan-す"), "はなした", "はなさなかった", "はなしました", "はなしませんでした"],
+  [verb("待つ", "まつ", "godan-つ"), "まった", "またなかった", "まちました", "まちませんでした"],
+  [verb("死ぬ", "しぬ", "godan-ぬ"), "しんだ", "しななかった", "しにました", "しにませんでした"],
+  [verb("呼ぶ", "よぶ", "godan-ぶ"), "よんだ", "よばなかった", "よびました", "よびませんでした"],
+  [verb("飲む", "のむ", "godan-む"), "のんだ", "のまなかった", "のみました", "のみませんでした"],
+  [verb("帰る", "かえる", "godan-る"), "かえった", "かえらなかった", "かえりました", "かえりませんでした"],
+  [verb("行く", "いく", "godan-く"), "いった", "いかなかった", "いきました", "いきませんでした"],
+  [verb("持って行く", "もっていく", "godan-く"), "もっていった", "もっていかなかった", "もっていきました", "もっていきませんでした"],
+  [verb("有る", "ある", "godan-る"), "あった", "なかった", "ありました", "ありませんでした"],
+  [verb("食べる", "たべる", "ichidan"), "たべた", "たべなかった", "たべました", "たべませんでした"],
+  [verb("見る", "みる", "ichidan"), "みた", "みなかった", "みました", "みませんでした"],
+  [verb("来る", "くる", "kuru"), "きた", "こなかった", "きました", "きませんでした"],
+  [verb("為る", "する", "suru"), "した", "しなかった", "しました", "しませんでした"],
+  [verb("下さる", "くださる", "honorific"), "くださった", "くださらなかった", "くださいました", "くださいませんでした"],
+  [verb("料理する", "りょうりする", "suru-noun"), "りょうりした", "りょうりしなかった", "りょうりしました", "りょうりしませんでした"],
+];
+
+test("past forms match the reference table", () => {
+  for (const [v, past, pastNegative, politePast, politePastNegative] of PAST_TABLE) {
+    assert.equal(conjugate(v, "plain-past").kana, past, v.kanji);
+    assert.equal(conjugate(v, "plain-past-negative").kana, pastNegative, v.kanji);
+    assert.equal(conjugate(v, "polite-past").kana, politePast, v.kanji);
+    assert.equal(conjugate(v, "polite-past-negative").kana, politePastNegative, v.kanji);
+  }
+});
+
+test("past forms keep the kanji", () => {
+  const cases = [
+    [verb("書く", "かく", "godan-く"), "plain-past", "書いた"],
+    [verb("飲む", "のむ", "godan-む"), "plain-past", "飲んだ"],
+    [verb("行く", "いく", "godan-く"), "plain-past", "行った"],
+    [verb("来る", "くる", "kuru"), "plain-past", "来た"],
+    [verb("来る", "くる", "kuru"), "plain-past-negative", "来なかった"],
+    [verb("持ってくる", "もってくる", "kuru"), "plain-past", "持ってきた"],
+    [verb("勉強する", "べんきょうする", "suru-noun"), "plain-past", "勉強した"],
+    [verb("有る", "ある", "godan-る"), "plain-past", "有った"],
+  ];
+  for (const [v, formId, expected] of cases) {
+    assert.equal(conjugate(v, formId).kanji, expected);
+  }
+});
+
+test("only 行く takes the irregular past among く verbs", () => {
+  assert.equal(conjugate(verb("歩く", "あるく", "godan-く"), "plain-past").kana, "あるいた");
+  assert.equal(conjugate(verb("引く", "ひく", "godan-く"), "plain-past").kana, "ひいた");
+});
+
+test("the past is accepted in kana or kanji, and the old mistake is rejected", () => {
+  const iku = verb("行く", "いく", "godan-く");
+  assert.ok(isCorrect(iku, "plain-past", "いった"));
+  assert.ok(isCorrect(iku, "plain-past", "行った"));
+  assert.ok(!isCorrect(iku, "plain-past", "いいた"));
+  assert.ok(!isCorrect(verb("飲む", "のむ", "godan-む"), "plain-past", "のみた"));
+});
+
 test("kanji forms keep the kanji and swap the ending", () => {
   const cases = [
     [verb("買う", "かう", "godan-う"), "plain-negative", "買わない"],

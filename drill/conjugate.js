@@ -1,13 +1,18 @@
 // Conjugation rules. No DOM here, so tests can run this file directly.
 //
 // To add a form: add one entry to FORMS, then add rows to the test table.
-// A form names which verb base it attaches to ("a" or "i"), its suffix, and
-// whether its French translation is negative.
+// A form names which verb base it attaches to ("a", "i" or "ta"), its suffix, and
+// whether its French translation is negative and past. `short` is its name in
+// Settings, under a title naming the tense.
 
 export const FORMS = {
-  "plain-negative": { label: "Forme neutre négative", ending: "〜ない", base: "a", suffix: "ない", negative: true },
-  "polite-affirmative": { label: "Forme polie", ending: "〜ます", base: "i", suffix: "ます", negative: false },
-  "polite-negative": { label: "Forme polie négative", ending: "〜ません", base: "i", suffix: "ません", negative: true },
+  "plain-negative": { label: "Forme neutre négative", short: "Neutre négatif", ending: "〜ない", base: "a", suffix: "ない", negative: true, past: false },
+  "polite-affirmative": { label: "Forme polie", short: "Poli", ending: "〜ます", base: "i", suffix: "ます", negative: false, past: false },
+  "polite-negative": { label: "Forme polie négative", short: "Poli négatif", ending: "〜ません", base: "i", suffix: "ません", negative: true, past: false },
+  "plain-past": { label: "Passé neutre", short: "Neutre", ending: "〜た", base: "ta", suffix: "た", negative: false, past: true },
+  "plain-past-negative": { label: "Passé neutre négatif", short: "Neutre négatif", ending: "〜なかった", base: "a", suffix: "なかった", negative: true, past: true },
+  "polite-past": { label: "Passé poli", short: "Poli", ending: "〜ました", base: "i", suffix: "ました", negative: false, past: true },
+  "polite-past-negative": { label: "Passé poli négatif", short: "Poli négatif", ending: "〜ませんでした", base: "i", suffix: "ませんでした", negative: true, past: true },
 };
 
 export const GROUPS = {
@@ -20,12 +25,16 @@ export const GROUPS = {
 export const GODAN_ROWS = {
   a: { う: "わ", く: "か", ぐ: "が", す: "さ", つ: "た", ぬ: "な", ぶ: "ば", む: "ま", る: "ら" },
   i: { う: "い", く: "き", ぐ: "ぎ", す: "し", つ: "ち", ぬ: "に", ぶ: "び", む: "み", る: "り" },
+  ta: { う: "っ", く: "い", ぐ: "い", す: "し", つ: "っ", ぬ: "ん", ぶ: "ん", む: "ん", る: "っ" },
 };
-const KURU_BASE = { a: "こ", i: "き" };
-const SURU_BASE = { a: "し", i: "し" };
-const HONORIFIC_BASE = { a: "ら", i: "い" };
+const VOICES_TA = new Set(["ぐ", "ぬ", "ぶ", "む"]); // their た becomes だ
+const KURU_BASE = { a: "こ", i: "き", ta: "き" };
+const SURU_BASE = { a: "し", i: "し", ta: "し" };
+const HONORIFIC_BASE = { a: "ら", i: "い", ta: "っ" };
 
 export const isAru = (verb) => verb.class === "godan-る" && verb.reading === "ある";
+// 行く and compounds like 持っていく, but not 歩く or 引く.
+const isIku = (verb) => verb.class === "godan-く" && /(^|[てで])[いゆ]く$/.test(verb.reading);
 const dropLast = (text, count = 1) => text.slice(0, text.length - count);
 
 export function groupOf(verb) {
@@ -40,11 +49,16 @@ export function groupOf(verb) {
 // 帰る and 入る look ichidan but are godan.
 function godan(verb, form) {
   const end = verb.reading.at(-1);
-  const change = GODAN_ROWS[form.base][end] + form.suffix;
+  const iku = form.base === "ta" && isIku(verb);
+  const sound = iku ? "っ" : GODAN_ROWS[form.base][end];
+  const suffix = form.base === "ta" && VOICES_TA.has(end) ? "だ" : form.suffix;
+  const change = sound + suffix;
   return {
     kana: dropLast(verb.reading) + change,
     kanji: verb.kanji ? dropLast(verb.kanji) + change : null,
-    rule: `Godan ${end} : ${end} → ${GODAN_ROWS[form.base][end]} + ${form.suffix}`,
+    rule: iku
+      ? `行く est irrégulier : く → ${sound} + ${suffix}`
+      : `Godan ${end} : ${end} → ${sound} + ${suffix}`,
   };
 }
 

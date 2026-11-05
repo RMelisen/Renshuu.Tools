@@ -48,7 +48,8 @@ python -m http.server 8765 --directory drill
 - When matching `typeofspeech`, never match a bare "verb", because "adverb" contains it.
 - Filter known verbs on `correct_count` or `mastery_avg_perc > 0`. The average includes unstudied quiz types, so it stays low and a higher cutoff removes every verb.
 - Keep the tables in `drill/french.js` to general French grammar, keyed by French infinitive, not by studied Japanese verbs.
-- To add a form, add one entry to `FORMS` in `drill/conjugate.js` and rows to the table in the tests. Forms outside the present tense will need more than a base and a suffix, for example the euphonic changes in て and た forms, including 行く → 行った.
+- To add a form, add one entry to `FORMS` in `drill/conjugate.js` and rows to the table in the tests. The た form uses the `ta` base in `GODAN_ROWS`, with the voiced だ and the 行く → 行った exception handled in `godan()`. A て form could reuse them.
+- A new form is switched on for returning visitors through `seenForms` in saved settings. The cheatsheet tables split forms by tense through `past`, so check them at phone width after adding one.
 
 ## Publishing the drill
 
