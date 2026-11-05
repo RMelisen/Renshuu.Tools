@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { existsSync, readFileSync } from "node:fs";
 import { test } from "node:test";
-import { FORMS } from "../drill/conjugate.js";
+import { FORMS, hasForm } from "../drill/conjugate.js";
 import { conjugateFrench, firstMeaning, translate } from "../drill/french.js";
 
 // meaning, affirmative, negative
@@ -148,14 +148,73 @@ const PAST_TABLE = [
 
 test("past meanings conjugate in the passé composé", () => {
   for (const [meaning, affirmative, negative] of PAST_TABLE) {
-    assert.equal(conjugateFrench(meaning, { past: true, negative: false }), affirmative, meaning);
-    assert.equal(conjugateFrench(meaning, { past: true, negative: true }), negative, meaning);
+    assert.equal(conjugateFrench(meaning, { tense: "past", negative: false }), affirmative, meaning);
+    assert.equal(conjugateFrench(meaning, { tense: "past", negative: true }), negative, meaning);
+  }
+});
+
+test("the て form reads as the start of a sentence", () => {
+  const cases = [
+    ["manger", "je mange et…"],
+    ["écrire", "j'écris et…"],
+    ["se lever", "je me lève et…"],
+    ["poser une question", "je pose une question et…"],
+    ["pleuvoir", "il pleut et…"],
+  ];
+  for (const [meaning, expected] of cases) {
+    assert.equal(conjugateFrench(meaning, { tense: "te" }), expected, meaning);
+  }
+});
+
+// meaning, ている translation
+const TEIRU_TABLE = [
+  // an action under way
+  ["manger", "je suis en train de manger"],
+  ["écrire", "je suis en train d'écrire"],
+  ["se dépêcher", "je suis en train de me dépêcher"],
+  ["s'entraîner", "je suis en train de m'entraîner"],
+  ["poser une question", "je suis en train de poser une question"],
+  ["prendre son temps", "je suis en train de prendre mon temps"],
+  ["jouer à", "je suis en train de jouer"],
+  // a state: French uses the plain present
+  ["connaître", "je connais"],
+  ["voir", "je vois"],
+  ["entendre", "j'entends"],
+  ["savoir", "je sais"],
+  ["comprendre", "je comprends"],
+  ["croire", "je crois"],
+  ["penser", "je pense"],
+  ["porter", "je porte"],
+  ["porter sur soi", "je porte sur moi"],
+  ["avoir faim", "j'ai faim"],
+  ["être absent", "je suis absent"],
+  ["pleuvoir", "il pleut"],
+  ["signifier", "cela signifie"],
+  // the result of a change: "je suis" and the participle
+  ["se marier", "je suis marié"],
+  ["s'asseoir", "je suis assis"],
+  ["se lever", "je suis levé"],
+  ["s'allonger", "je suis allongé"],
+  ["mourir", "je suis mort"],
+  ["aller", "je suis allé"],
+  ["venir", "je suis venu"],
+  ["partir", "je suis parti"],
+  ["arriver à", "je suis arrivé"],
+  ["devenir", "je suis devenu"],
+  ["se mettre en colère", "je suis en colère"],
+];
+
+test("ている reads as an action under way, a state or a result", () => {
+  for (const [meaning, expected] of TEIRU_TABLE) {
+    assert.equal(conjugateFrench(meaning, { tense: "te", progressive: true }), expected, meaning);
   }
 });
 
 test("text that is not an infinitive gives no translation", () => {
   assert.equal(conjugateFrench("téléphone portable", { negative: false }), null);
-  assert.equal(conjugateFrench("téléphone portable", { past: true }), null);
+  assert.equal(conjugateFrench("téléphone portable", { tense: "past" }), null);
+  assert.equal(conjugateFrench("téléphone portable", { tense: "te" }), null);
+  assert.equal(conjugateFrench("téléphone portable", { tense: "te", progressive: true }), null);
   assert.equal(conjugateFrench("", { negative: false }), null);
 });
 
@@ -178,6 +237,8 @@ test("translate follows the form: polite and plain read the same", () => {
   assert.equal(translate(kaku, "polite-past"), "j'ai écrit");
   assert.equal(translate(kaku, "plain-past-negative"), "je n'ai pas écrit");
   assert.equal(translate(kaku, "polite-past-negative"), "je n'ai pas écrit");
+  assert.equal(translate(kaku, "te"), "j'écris et…");
+  assert.equal(translate(kaku, "te-iru"), "je suis en train d'écrire");
 });
 
 test("ある translates as il y a, whatever its definition says", () => {
@@ -186,6 +247,7 @@ test("ある translates as il y a, whatever its definition says", () => {
   assert.equal(translate(aru, "polite-negative"), "il n'y a pas");
   assert.equal(translate(aru, "plain-past"), "il y avait");
   assert.equal(translate(aru, "polite-past-negative"), "il n'y avait pas");
+  assert.equal(translate(aru, "te"), "il y a et…");
 });
 
 test("a noun + する verb with no verb meaning has no translation", () => {
@@ -193,10 +255,42 @@ test("a noun + する verb with no verb meaning has no translation", () => {
   assert.equal(translate(noun, "polite-affirmative"), null);
 });
 
-test("every form says whether it is negative and past, and has a name under its tense", () => {
+const adjective = (defs, reading = "しずか", cls = "na-adj") => ({ kanji: "", reading, class: cls, defs });
+
+test("adjectives read as c'est, in every form", () => {
+  const calme = adjective(["calme, tranquille", "lent"]);
+  assert.equal(translate(calme, "polite-affirmative"), "c'est calme");
+  assert.equal(translate(calme, "polite-negative"), "ce n'est pas calme");
+  assert.equal(translate(calme, "plain-negative"), "ce n'est pas calme");
+  assert.equal(translate(calme, "plain-past"), "c'était calme");
+  assert.equal(translate(calme, "polite-past-negative"), "ce n'était pas calme");
+  assert.equal(translate(calme, "te"), "c'est calme et…");
+});
+
+test("adjectives whose meaning is a verb conjugate that verb", () => {
+  const cases = [
+    ["être content", "polite-affirmative", "je suis content"],
+    ["être content", "plain-past", "j'étais content"],
+    ["être content", "polite-negative", "je ne suis pas content"],
+    ["avoir peur", "plain-past-negative", "je n'avais pas peur"],
+    ["aimer ça", "polite-affirmative", "j'aime ça"],
+    ["aimer ça", "plain-negative", "je n'aime pas ça"],
+    ["détester ça", "plain-past", "j'ai détesté ça"],
+    ["vouloir", "te", "je veux et…"],
+  ];
+  for (const [meaning, formId, expected] of cases) {
+    assert.equal(translate(adjective([meaning], "うれしい", "i-adj"), formId), expected, meaning);
+  }
+});
+
+test("notes in brackets don't reach an adjective's translation", () => {
+  assert.equal(translate(adjective(["chaud (pour le temps, etc.)"], "あつい", "i-adj"), "plain-past"), "c'était chaud");
+});
+
+test("every form says whether it is negative and its tense, and has a name under its tense", () => {
   for (const [id, form] of Object.entries(FORMS)) {
     assert.equal(typeof form.negative, "boolean", id);
-    assert.equal(typeof form.past, "boolean", id);
+    assert.ok(["present", "past", "te"].includes(form.tense), id);
     assert.ok(form.short, id);
   }
 });
@@ -206,9 +300,9 @@ test("every generated verb with a verb meaning gets a translation", { skip: !exi
   const verbs = JSON.parse(readFileSync(data, "utf-8"));
   for (const v of verbs) {
     if (v.defs[0].startsWith("sans する : ")) continue;
-    for (const formId of Object.keys(FORMS)) {
+    for (const formId of Object.keys(FORMS).filter((id) => hasForm(v, id))) {
       const french = translate(v, formId);
-      assert.match(french ?? "", /^(je |j'|il |cela )/, `${v.reading}: ${v.defs[0]}`);
+      assert.match(french ?? "", /^(je |j'|il |cela |c'|ce )/, `${v.reading}: ${v.defs[0]}`);
     }
   }
 });

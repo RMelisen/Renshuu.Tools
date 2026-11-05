@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Build drill/verbs.json from renshuu_export.json: the verbs you have studied.
+"""Build drill/verbs.json from renshuu_export.json: the verbs and adjectives you have studied.
 
 Only what the drill needs is written. Profile data and study history stay out.
 
@@ -20,13 +20,22 @@ TARGET = ROOT / "drill" / "verbs.json"
 SURU_MEANINGS = json.loads((ROOT / "scripts" / "suru_meanings.json").read_text(encoding="utf-8"))
 NO_VERB_MEANING = "sans する : "  # marks a definition that describes the word alone
 
+# The export often defines な adjectives as nouns (親切 is "gentillesse"), and "c'est"
+# doesn't suit feelings (嬉しい). This hand-written table leads with a meaning that
+# reads well, keyed by the export's spelling.
+ADJECTIVE_MEANINGS = json.loads((ROOT / "scripts" / "adjective_meanings.json").read_text(encoding="utf-8"))
+
 
 def classify(typeofspeech):
-    """Map Renshuu's part-of-speech label to a verb class, or None if not a verb.
+    """Map Renshuu's part-of-speech label to a word class, or None if it isn't drilled.
 
     Never match on a bare "verb": "adverb" contains it.
     """
     label = typeofspeech or ""
+    if label == "(Adjective/-い)":
+        return "i-adj"
+    if label == "(Adjective/-な)":
+        return "na-adj"
     godan = re.search(r"Godan verb - (\S)", label)
     if godan:
         return f"godan-{godan.group(1)}"
@@ -59,6 +68,8 @@ def to_entry(term, verb_class):
         defs = [meaning] if meaning else [NO_VERB_MEANING + defs[0], *defs[1:]]
         kanji = f"{kanji}する" if kanji else ""
         reading = f"{reading}する"
+    if verb_class in ("i-adj", "na-adj") and (kanji or reading) in ADJECTIVE_MEANINGS:
+        defs = [ADJECTIVE_MEANINGS[kanji or reading], *defs[:1]]
     return {
         "id": term["id"],
         "kanji": kanji,

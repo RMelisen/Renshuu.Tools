@@ -7,6 +7,7 @@ Personal tools built on a Renshuu study data export: an export script and a conj
 - `renshuu_export.py`: calls the Renshuu API, writes `renshuu_export.json` and `renshuu_known.txt`.
 - `scripts/build_verbs.py`: turns the export into `drill/verbs.json`.
 - `scripts/suru_meanings.json`: hand-written French verb meanings for noun + する words, because the export only defines the noun.
+- `scripts/adjective_meanings.json`: hand-written French meanings for adjectives the export defines as nouns or that read badly after "c'est". A meaning starting with a verb like "être" is conjugated.
 - `drill/conjugate.js`: conjugation rules and cheatsheet examples, no DOM. `drill/french.js`: turns a verb's French meaning into the translation shown after an answer, no DOM. `drill/app.js`: card flow, settings and cheatsheet display.
 - `tests/conjugate.test.mjs` and `tests/french.test.mjs`: tests for the rules and the generated verb list.
 
@@ -39,7 +40,7 @@ python -m http.server 8765 --directory drill
 - Never commit `.env`, `renshuu_export.json`, `renshuu_known.txt` or `drill/verbs.json`. All are in `.gitignore`.
 - `CHEATSHEET` in `drill/conjugate.js` is committed. Keep its examples to common verbs chosen by hand, not taken from the study data.
 - The exports hold profile data and study history. `drill/verbs.json` is the only derived data that leaves this machine, and only inside the private artifact. Keep it limited to the fields `build_verbs.py` writes today.
-- `scripts/suru_meanings.json` is committed. Keep it to dictionary meanings, with entries that don't depend on which words have been studied.
+- `scripts/suru_meanings.json` and `scripts/adjective_meanings.json` are committed. Keep them to dictionary meanings, with entries that don't depend on which words have been studied.
 - The API key is read from `RENSHUU_API_KEY` or `.env`. Never hardcode it.
 
 ## Conjugation rules
@@ -48,8 +49,10 @@ python -m http.server 8765 --directory drill
 - When matching `typeofspeech`, never match a bare "verb", because "adverb" contains it.
 - Filter known verbs on `correct_count` or `mastery_avg_perc > 0`. The average includes unstudied quiz types, so it stays low and a higher cutoff removes every verb.
 - Keep the tables in `drill/french.js` to general French grammar, keyed by French infinitive, not by studied Japanese verbs.
-- To add a form, add one entry to `FORMS` in `drill/conjugate.js` and rows to the table in the tests. The た form uses the `ta` base in `GODAN_ROWS`, with the voiced だ and the 行く → 行った exception handled in `godan()`. A て form could reuse them.
-- A new form is switched on for returning visitors through `seenForms` in saved settings. The cheatsheet tables split forms by tense through `past`, so check them at phone width after adding one.
+- To add a form, add one entry to `FORMS` in `drill/conjugate.js` and rows to the table in the tests. The た and て forms use the `ta` base in `GODAN_ROWS`, with their voiced ending in `voiced` and the 行く exception handled in `godan()`.
+- Use `hasForm` for a word that doesn't take a form: ある, いる and adjectives have no ている, and 無い has no negative. Cards skip it and the cheatsheet shows a dash.
+- Adjectives share the form ids in `FORMS`, with their endings in `I_ADJECTIVE` and `NA_ADJECTIVE`. `also` lists other correct answers, like では for じゃ.
+- A new form is switched on for returning visitors through `seenForms` in saved settings. Settings and the cheatsheet group forms by their `tense`, so check them at phone width after adding one.
 
 ## Publishing the drill
 

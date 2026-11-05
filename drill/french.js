@@ -2,7 +2,7 @@
 // answer: "boire, avaler" gives "je bois" or "je ne bois pas". No DOM here, and
 // nothing about the study data: the tables below are general French grammar.
 
-import { FORMS, isAru } from "./conjugate.js";
+import { FORMS, isAdjective, isAru } from "./conjugate.js";
 
 // Verbs that take a subject other than "je".
 const OTHER_SUBJECT = {
@@ -95,6 +95,17 @@ const TAKES_ETRE = new Set([
 // States read better in the imperfect: いた is "j'étais", not "j'ai été".
 const IMPERFECT = { être: "étais", avoir: "avais" };
 
+// With ている these read as the plain present: 知っている is "je connais".
+const STATES = new Set([
+  "être", "avoir", "connaître", "savoir", "comprendre", "croire", "penser", "porter",
+  "voir", "entendre", "habiter", "vouloir", "aimer", "signifier", "pleuvoir", "neiger",
+]);
+
+// With ている these give the state that results, like the verbs in TAKES_ETRE:
+// 結婚している is "je suis marié", not "je suis en train de me marier".
+const REFLEXIVE_RESULTS = new Set(["marier", "asseoir", "lever", "allonger", "coucher", "réveiller"]);
+const RESULT_PHRASES = { "mettre en colère": "je suis en colère" };
+
 const POSSESSIVES = { son: "mon", sa: "ma", ses: "mes", soi: "moi" };
 const INDEFINITE = new Set(["un", "une", "des"]);
 const KEEPS_ARTICLE = new Set(["être", "devenir"]); // je ne suis pas un élève
@@ -123,14 +134,14 @@ function complement(words, infinitive, negative) {
   return rest;
 }
 
-// Returns null when the meaning doesn't start with a verb we can conjugate.
-export function conjugateFrench(meaning, { negative = false, past = false } = {}) {
-  const match = meaning.trim().match(/^(se\s+|s['’])?(\S+)\s*(.*)$/);
-  if (!match) return null;
-  const [, reflexive, infinitive, tail] = match;
+const words = (tail) => (tail ? tail.split(/\s+/) : []);
+const joined = (list) => (list.length ? ` ${list.join(" ")}` : "");
+const presentOf = (infinitive) => OTHER_SUBJECT[infinitive]?.[1] ?? applyEndings(infinitive, IRREGULAR, ENDINGS);
+
+function sentence({ reflexive, infinitive, tail }, negative, past) {
   const other = OTHER_SUBJECT[infinitive];
   const subject = other ? other[0] : "je";
-  const present = other ? other[1] : applyEndings(infinitive, IRREGULAR, ENDINGS);
+  const present = presentOf(infinitive);
   if (!present) return null;
 
   let finite = present;
@@ -144,12 +155,39 @@ export function conjugateFrench(meaning, { negative = false, past = false } = {}
   }
 
   const verb = reflexive ? elide("me", finite) + finite : finite;
-  const words = complement(tail ? tail.split(/\s+/) : [], infinitive, negative);
-  if (participle) words.unshift(participle);
-  const after = words.length ? ` ${words.join(" ")}` : "";
+  const rest = complement(words(tail), infinitive, negative);
+  if (participle) rest.unshift(participle);
+  const after = joined(rest);
   if (negative) return `${subject} ${elide("ne", verb)}${verb} pas${after}`;
   const start = subject === "je" ? elide("je", verb) : `${subject} `;
   return `${start}${verb}${after}`;
+}
+
+// ている is an action under way, unless the verb names a state or a change.
+function progressiveSentence(parts) {
+  const { reflexive, infinitive, tail } = parts;
+  if (!presentOf(infinitive)) return null;
+  if (STATES.has(infinitive)) return sentence(parts, false, false);
+  const phrase = reflexive && RESULT_PHRASES[`${infinitive} ${tail}`];
+  if (phrase) return phrase;
+
+  const after = joined(complement(words(tail), infinitive, false));
+  if (reflexive ? REFLEXIVE_RESULTS.has(infinitive) : TAKES_ETRE.has(infinitive)) {
+    return `je suis ${applyEndings(infinitive, IRREGULAR_PARTICIPLES, PARTICIPLE_ENDINGS)}${after}`;
+  }
+  const verb = reflexive ? elide("me", infinitive) + infinitive : infinitive;
+  return `je suis en train ${elide("de", verb)}${verb}${after}`;
+}
+
+// Returns null when the meaning doesn't start with a verb we can conjugate.
+export function conjugateFrench(meaning, { negative = false, tense = "present", progressive = false } = {}) {
+  const match = meaning.trim().match(/^(se\s+|s['’])?(\S+)\s*(.*)$/);
+  if (!match) return null;
+  const [, reflexive, infinitive, tail] = match;
+  const parts = { reflexive, infinitive, tail };
+  if (progressive) return progressiveSentence(parts);
+  const result = sentence(parts, negative, tense === "past");
+  return result && tense === "te" ? `${result} et…` : result; // て links to what follows
 }
 
 // The first synonym, without notes in brackets (which can contain commas).
@@ -157,13 +195,24 @@ export function firstMeaning(definition) {
   return definition.replace(/\s*\([^)]*\)/g, "").split(/[,;]/)[0].trim();
 }
 
+// "calme" reads as "c'est calme". Feelings and traits are written as verbs in
+// scripts/adjective_meanings.json, so 嬉しい reads as "je suis content".
+function adjectiveSentence(meaning, form) {
+  if (/^(être|avoir|aimer|détester|vouloir)(\s|$)/.test(meaning)) return conjugateFrench(meaning, form);
+  const be = form.tense === "past" ? "était" : "est";
+  const start = form.negative ? `ce n'${be} pas` : `c'${be}`;
+  return `${start} ${meaning}${form.tense === "te" ? " et…" : ""}`;
+}
+
 // Polite and plain forms read the same in French. A noun + する verb with no verb
 // meaning starts with "sans する", which isn't a verb, so it gets no translation.
 export function translate(verb, formId) {
   const form = FORMS[formId];
+  if (isAdjective(verb)) return adjectiveSentence(firstMeaning(verb.defs[0]), form);
   if (isAru(verb)) {
-    const have = form.past ? "avait" : "a";
-    return form.negative ? `il n'y ${have} pas` : `il y ${have}`;
+    const have = form.tense === "past" ? "avait" : "a";
+    const there = form.negative ? `il n'y ${have} pas` : `il y ${have}`;
+    return form.tense === "te" ? `${there} et…` : there;
   }
   return conjugateFrench(firstMeaning(verb.defs[0]), form);
 }

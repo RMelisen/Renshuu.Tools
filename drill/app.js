@@ -1,4 +1,4 @@
-import { CHEATSHEET, conjugate, FORMS, GODAN_ROWS, GROUPS, groupOf, isCorrect, normalize, splitEnding } from "./conjugate.js";
+import { CHEATSHEET, conjugate, FORMS, GODAN_ROWS, GROUPS, groupOf, hasForm, isCorrect, normalize, splitEnding } from "./conjugate.js";
 import { translate } from "./french.js";
 
 // index.html has no <html> tag of its own: publishing wraps it in a skeleton.
@@ -7,6 +7,7 @@ document.documentElement.lang = "fr";
 const STORAGE_KEY = "doshi-drill-settings";
 // The forms that existed before saved settings recorded which forms they had seen.
 const FIRST_FORMS = ["plain-negative", "polite-affirmative", "polite-negative"];
+const FIRST_GROUPS = ["godan", "ichidan", "irregular", "suru-noun"];
 const DEFAULTS = {
   forms: Object.keys(FORMS),
   groups: Object.keys(GROUPS),
@@ -19,12 +20,12 @@ const DEFAULTS = {
 const CARD_DETAILS = {
   showReading: { text: "Lecture en kana", short: "Kana" },
   showMeaning: { text: "Traduction", short: "Traduction" },
-  showGroup: { text: "Groupe du verbe", short: "Groupe" },
+  showGroup: { text: "Groupe du mot", short: "Groupe" },
   showEnding: { text: "Terminaison", short: "Terminaison" },
 };
 const LENGTHS = [10, 20, 40];
-const tenseTitle = (past) => (past ? "Passé" : "Présent");
-const formIdsOf = (past) => Object.keys(FORMS).filter((id) => FORMS[id].past === past);
+const TENSES = { present: "Présent", past: "Passé", te: "Forme en て" };
+const formIdsOf = (tense) => Object.keys(FORMS).filter((id) => FORMS[id].tense === tense);
 const CELLS_PER_ROW = 10;
 
 const $ = (id) => document.getElementById(id);
@@ -39,11 +40,13 @@ function loadSettings() {
     const saved = JSON.parse(localStorage.getItem(STORAGE_KEY));
     if (!saved) return { ...DEFAULTS };
     const merged = { ...DEFAULTS, ...saved };
-    // A form added since the last visit starts switched on.
-    const seen = saved.seenForms ?? FIRST_FORMS;
-    const added = Object.keys(FORMS).filter((id) => !seen.includes(id));
-    merged.forms = [...merged.forms, ...added].filter((id) => FORMS[id]);
-    merged.groups = merged.groups.filter((id) => GROUPS[id]);
+    // A form or group added since the last visit starts switched on.
+    const withNew = (chosen, all, seen) => [
+      ...chosen.filter((id) => all[id]),
+      ...Object.keys(all).filter((id) => !seen.includes(id)),
+    ];
+    merged.forms = withNew(merged.forms, FORMS, saved.seenForms ?? FIRST_FORMS);
+    merged.groups = withNew(merged.groups, GROUPS, saved.seenGroups ?? FIRST_GROUPS);
     return merged.forms.length && merged.groups.length ? merged : { ...DEFAULTS };
   } catch {
     return { ...DEFAULTS };
@@ -52,7 +55,11 @@ function loadSettings() {
 
 function saveSettings() {
   try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify({ ...settings, seenForms: Object.keys(FORMS) }));
+    localStorage.setItem(STORAGE_KEY, JSON.stringify({
+      ...settings,
+      seenForms: Object.keys(FORMS),
+      seenGroups: Object.keys(GROUPS),
+    }));
   } catch {
     // Settings then last for this visit only.
   }
@@ -76,7 +83,7 @@ function makeExercise(verb, formId) {
   const answerInKanji = !kanaLead && result.kanji;
   return {
     formId,
-    prompt: { label: form.label, ending: form.ending },
+    prompt: { label: form.label, ending: result.ending ?? form.ending },
     cue: {
       main: kanaLead ? verb.reading : verb.kanji,
       sub: kanaLead ? verb.kanji : verb.reading,
@@ -95,16 +102,26 @@ function makeExercise(verb, formId) {
 }
 
 // Each verb appears once before any verb repeats, and a repeated verb gets a
-// different form, so a round never asks the same card twice.
+// different form, so a round never asks the same card twice. A verb skips forms
+// it doesn't have: ある has no ている.
 function buildCards() {
-  const pool = shuffle(verbs.filter((v) => settings.groups.includes(groupOf(v))));
   const forms = shuffle(settings.forms);
-  const total = Math.min(settings.length, pool.length * forms.length);
+  const formsOf = (verb) => forms.filter((id) => hasForm(verb, id));
+  const pool = shuffle(verbs.filter((v) => settings.groups.includes(groupOf(v)) && formsOf(v).length));
+  const available = pool.reduce((sum, verb) => sum + formsOf(verb).length, 0);
+  const total = Math.min(settings.length, available);
+  const asked = new Set();
   const cards = [];
-  for (let i = 0; i < total; i++) {
+  for (let i = 0; cards.length < total; i++) {
+    const verb = pool[i % pool.length];
     const pass = Math.floor(i / pool.length);
-    const exercise = makeExercise(pool[i % pool.length], forms[(i + pass) % forms.length]);
-    cards.push({ ...exercise, slot: i, retry: false });
+    const start = i + pass;
+    const formId = forms
+      .map((_, offset) => forms[(start + offset) % forms.length])
+      .find((id) => hasForm(verb, id) && !asked.has(`${verb.id}/${id}`));
+    if (!formId) continue;
+    asked.add(`${verb.id}/${formId}`);
+    cards.push({ ...makeExercise(verb, formId), slot: cards.length, retry: false });
   }
   return cards;
 }
@@ -374,16 +391,16 @@ function buildChoice(container, { type, name, value, checked, text, count }) {
 }
 
 function buildSettings() {
-  for (const past of [false, true]) {
-    const tense = makeElement("fieldset", "set-tense");
-    tense.append(makeElement("legend", "", tenseTitle(past)));
-    for (const id of formIdsOf(past)) {
-      buildChoice(tense, {
+  for (const [tense, title] of Object.entries(TENSES)) {
+    const section = makeElement("fieldset", "set-tense");
+    section.append(makeElement("legend", "", title));
+    for (const id of formIdsOf(tense)) {
+      buildChoice(section, {
         type: "checkbox", name: "form", value: id,
         checked: settings.forms.includes(id), text: `${FORMS[id].short} ${FORMS[id].ending}`,
       });
     }
-    $("set-forms").append(tense);
+    $("set-forms").append(section);
   }
   for (const [id, label] of Object.entries(GROUPS)) {
     buildChoice($("set-groups"), {
@@ -451,7 +468,7 @@ function makeHeader(text, scope) {
 }
 
 // One column per dictionary ending, one row per base this tense's forms use.
-function buildGodanTable(past) {
+function buildGodanTable(tense) {
   const table = makeElement("table", "cheat-shift");
   table.lang = "ja";
   const head = makeElement("tr");
@@ -468,7 +485,7 @@ function buildGodanTable(past) {
 
   const tbody = makeElement("tbody");
   for (const [base, row] of Object.entries(GODAN_ROWS)) {
-    const forms = Object.values(FORMS).filter((form) => form.base === base && form.past === past);
+    const forms = Object.values(FORMS).filter((form) => form.base === base && form.tense === tense);
     if (!forms.length) continue;
     const tr = makeElement("tr");
     const label = makeHeader("", "row");
@@ -488,11 +505,11 @@ function buildGodanTable(past) {
   return table;
 }
 
-function buildGodanExample(verb, past) {
+function buildGodanExample(verb, tense) {
   const line = makeElement("p", "cheat-example");
   line.lang = "ja";
   line.append(makeElement("span", "", `${verb.kanji} →`));
-  for (const formId of formIdsOf(past)) {
+  for (const formId of formIdsOf(tense)) {
     const { stem, ending } = splitEnding(verb.kanji, conjugate(verb, formId).kanji);
     const form = makeElement("span", "", stem);
     form.append(makeElement("span", "cheat-ending", ending));
@@ -501,8 +518,8 @@ function buildGodanExample(verb, past) {
   return line;
 }
 
-function buildIchidanFormula(verb, past) {
-  const suffixes = formIdsOf(past).map((id) => FORMS[id].suffix);
+function buildIchidanFormula(verb, tense) {
+  const suffixes = formIdsOf(tense).map((id) => FORMS[id].suffix);
   const line = makeElement("div", "cheat-formula");
   line.lang = "ja";
   line.setAttribute("role", "img");
@@ -534,6 +551,10 @@ function buildIrregularTable(verbs, formIds) {
     const tr = makeElement("tr");
     tr.append(makeHeader(verb.kanji || verb.reading, "row"));
     for (const formId of formIds) {
+      if (!hasForm(verb, formId)) {
+        tr.append(makeElement("td", "stem-mark", "—"));
+        continue;
+      }
       const { stem, ending } = splitEnding(verb.reading, conjugate(verb, formId).kana);
       const td = verb.endingsOnly ? makeElement("td") : makeElement("td", "", stem);
       if (verb.endingsOnly) td.append(makeElement("span", "stem-mark", "〜"));
@@ -546,11 +567,31 @@ function buildIrregularTable(verbs, formIds) {
   return table;
 }
 
+// One row per form the adjective has, labelled by the form's full name.
+function buildAdjectiveTable(adjective) {
+  const table = makeElement("table", "cheat-table cheat-adjective");
+  table.lang = "ja";
+  const tbody = makeElement("tbody");
+  for (const [formId, form] of Object.entries(FORMS)) {
+    if (!hasForm(adjective, formId)) continue;
+    const { stem, ending } = splitEnding(adjective.kanji, conjugate(adjective, formId).kanji);
+    const label = makeHeader(form.label, "row");
+    label.lang = "fr";
+    const td = makeElement("td", "", stem);
+    td.append(makeElement("span", "cheat-ending", ending));
+    const tr = makeElement("tr");
+    tr.append(label, td);
+    tbody.append(tr);
+  }
+  table.append(tbody);
+  return table;
+}
+
 function buildCheatsheet() {
-  const { godan, ichidan, irregular } = CHEATSHEET;
+  const { godan, ichidan, irregular, iAdjective, naAdjective } = CHEATSHEET;
   const note = (text) => makeElement("p", "cheat-note", text);
   // Four past columns would wrap on a phone, so neutral and polite get a table each.
-  const pastForms = formIdsOf(true);
+  const pastForms = formIdsOf("past");
   const pastNeutral = pastForms.filter((id) => id.startsWith("plain"));
   const pastPolite = pastForms.filter((id) => !id.startsWith("plain"));
   const group = (title, ...content) => {
@@ -558,38 +599,68 @@ function buildCheatsheet() {
     section.append(makeElement("h4", "", title), ...content);
     return section;
   };
-  const tense = (past, ...groups) => {
-    const section = makeElement("section", "cheat-tense");
-    section.append(makeElement("h3", "", tenseTitle(past)), ...groups);
-    return section;
+  const section = (title, ...groups) => {
+    const element = makeElement("section", "cheat-tense");
+    element.append(makeElement("h3", "", title), ...groups);
+    return element;
   };
   const shiftNote = "う devient わ, pas あ.";
   const irregularTitle = `${GROUPS.irregular} et ${GROUPS["suru-noun"]}`;
   $("cheatsheet-groups").replaceChildren(
-    tense(
-      false,
-      group(GROUPS.godan, buildGodanTable(false), buildGodanExample(godan, false), note(shiftNote)),
+    section(
+      TENSES.present,
+      group(GROUPS.godan, buildGodanTable("present"), buildGodanExample(godan, "present"), note(shiftNote)),
       group(
         GROUPS.ichidan,
-        buildIchidanFormula(ichidan, false),
+        buildIchidanFormula(ichidan, "present"),
         note("帰る, 入る et 要る ressemblent à des ichidan, mais sont des godan."),
       ),
-      group(irregularTitle, buildIrregularTable(irregular, formIdsOf(false))),
+      group(irregularTitle, buildIrregularTable(irregular, formIdsOf("present"))),
     ),
-    tense(
-      true,
+    section(
+      TENSES.past,
       group(
         GROUPS.godan,
-        buildGodanTable(true),
-        buildGodanExample(godan, true),
+        buildGodanTable("past"),
+        buildGodanExample(godan, "past"),
         note(shiftNote),
         note("Après ぐ, ぬ, ぶ et む, た devient だ. Exception : 行く donne 行った."),
       ),
-      group(GROUPS.ichidan, buildIchidanFormula(ichidan, true)),
+      group(GROUPS.ichidan, buildIchidanFormula(ichidan, "past")),
       group(
         irregularTitle,
         buildIrregularTable(irregular, pastNeutral),
         buildIrregularTable(irregular, pastPolite),
+      ),
+    ),
+    section(
+      TENSES.te,
+      group(
+        GROUPS.godan,
+        buildGodanTable("te"),
+        buildGodanExample(godan, "te"),
+        note("Mêmes changements qu'au passé : après ぐ, ぬ, ぶ et む, て devient で. Exception : 行く donne 行って."),
+      ),
+      group(GROUPS.ichidan, buildIchidanFormula(ichidan, "te")),
+      group(
+        irregularTitle,
+        buildIrregularTable(irregular, formIdsOf("te")),
+        note("ある et いる ne s'emploient pas à la forme 〜ている."),
+      ),
+    ),
+    section(
+      "Adjectifs",
+      group(
+        GROUPS["i-adj"],
+        buildAdjectiveTable(iAdjective),
+        note("いい devient よ, sauf dans いいです : よくない, よかった, よくて."),
+        note("Au poli négatif, 〜くありません et 〜くありませんでした sont aussi justes."),
+        note("Erreur classique : 高いでした. Le passé se met sur l'adjectif : 高かったです."),
+      ),
+      group(
+        GROUPS["na-adj"],
+        buildAdjectiveTable(naAdjective),
+        note("では peut remplacer じゃ, et 〜じゃないです ou 〜じゃなかったです existent aussi au poli."),
       ),
     ),
   );
@@ -649,7 +720,7 @@ function wireEvents() {
     event.preventDefault();
     const forms = readChoices("form");
     const groups = readChoices("group");
-    const hasVerbs = verbs.some((v) => groups.includes(groupOf(v)));
+    const hasVerbs = verbs.some((v) => groups.includes(groupOf(v)) && forms.some((id) => hasForm(v, id)));
     $("settings-error").hidden = Boolean(forms.length && hasVerbs);
     if (!forms.length || !hasVerbs) return;
     settings = { ...settings, forms, groups, length: Number(readChoices("length")[0]) };
@@ -669,7 +740,7 @@ async function main() {
     if (!response.ok) throw new Error(`HTTP ${response.status}`);
     verbs = await response.json();
   } catch {
-    $("status").textContent = "La liste de verbes n'a pas pu se charger. Lance python scripts/build_verbs.py, puis recharge la page.";
+    $("status").textContent = "La liste de mots n'a pas pu se charger. Lance python scripts/build_verbs.py, puis recharge la page.";
     return;
   }
   $("status").hidden = true;
