@@ -1,0 +1,21 @@
+# Secrets
+.env
+.env.*
+!.env.example
+
+# Generated exports (personal study data and profile info)
+renshuu_export.json
+renshuu_known.txt
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+
+# OS and editors
+Thumbs.db
+desktop.ini
+.DS_Store
+.vscode/
+.idea/
