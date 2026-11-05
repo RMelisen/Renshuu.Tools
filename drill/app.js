@@ -14,11 +14,13 @@ const DEFAULTS = {
   showReading: true,
   showMeaning: true,
   showGroup: true,
+  showEnding: true,
 };
 const CARD_DETAILS = {
   showReading: { text: "Lecture en kana", short: "Kana" },
   showMeaning: { text: "Traduction", short: "Traduction" },
   showGroup: { text: "Groupe du verbe", short: "Groupe" },
+  showEnding: { text: "Terminaison", short: "Terminaison" },
 };
 const LENGTHS = [10, 20, 40];
 const tenseTitle = (past) => (past ? "Passé" : "Présent");
@@ -124,7 +126,6 @@ function showNext() {
   $("verb-main").textContent = card.cue.main;
   renderCue();
   $("form-label").textContent = card.prompt.label;
-  $("form-ending").textContent = card.prompt.ending;
   $("retry-tag").hidden = !card.retry;
 
   const input = $("answer");
@@ -153,6 +154,7 @@ function renderCue() {
   show("verb-sub", sub, !subIsReading || settings.showReading);
   show("verb-defs", defs, settings.showMeaning);
   show("verb-group", group, settings.showGroup);
+  show("form-ending", round.current.prompt.ending, settings.showEnding);
 }
 
 // The Settings checkboxes and the buttons on the card change the same settings.

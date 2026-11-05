@@ -6,9 +6,9 @@
 // Settings, under a title naming the tense.
 
 export const FORMS = {
-  "plain-negative": { label: "Forme neutre négative", short: "Neutre négatif", ending: "〜ない", base: "a", suffix: "ない", negative: true, past: false },
-  "polite-affirmative": { label: "Forme polie", short: "Poli", ending: "〜ます", base: "i", suffix: "ます", negative: false, past: false },
-  "polite-negative": { label: "Forme polie négative", short: "Poli négatif", ending: "〜ません", base: "i", suffix: "ません", negative: true, past: false },
+  "plain-negative": { label: "Présent neutre négatif", short: "Neutre négatif", ending: "〜ない", base: "a", suffix: "ない", negative: true, past: false },
+  "polite-affirmative": { label: "Présent poli", short: "Poli", ending: "〜ます", base: "i", suffix: "ます", negative: false, past: false },
+  "polite-negative": { label: "Présent poli négatif", short: "Poli négatif", ending: "〜ません", base: "i", suffix: "ません", negative: true, past: false },
   "plain-past": { label: "Passé neutre", short: "Neutre", ending: "〜た", base: "ta", suffix: "た", negative: false, past: true },
   "plain-past-negative": { label: "Passé neutre négatif", short: "Neutre négatif", ending: "〜なかった", base: "a", suffix: "なかった", negative: true, past: true },
   "polite-past": { label: "Passé poli", short: "Poli", ending: "〜ました", base: "i", suffix: "ました", negative: false, past: true },
