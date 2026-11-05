@@ -210,6 +210,8 @@ button { font: inherit; color: inherit; cursor: pointer; }
 .verdict { font-weight: 700; }
 .correction { font: 600 1.75rem/1.35 var(--display); color: var(--pen); overflow-wrap: anywhere; }
 .correction small { font: 400 1.0625rem/1.4 var(--display); color: var(--soft); margin-left: 0.5rem; }
+.french { font-size: 1.125rem; font-weight: 500; }
+.french::first-letter { text-transform: uppercase; }
 .rule { color: var(--soft); }
 .hint { color: var(--soft); font-size: 0.875rem; }
 .hint.pen { color: var(--pen); }

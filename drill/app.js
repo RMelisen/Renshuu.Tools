@@ -1,4 +1,8 @@
 import { CHEATSHEET, conjugate, FORMS, GODAN_ROWS, GROUPS, groupOf, isCorrect, normalize, splitEnding } from "./conjugate.js";
+import { translate } from "./french.js";
+
+// index.html has no <html> tag of its own: publishing wraps it in a skeleton.
+document.documentElement.lang = "fr";
 
 const STORAGE_KEY = "doshi-drill-settings";
 const DEFAULTS = {
@@ -10,9 +14,9 @@ const DEFAULTS = {
   showGroup: true,
 };
 const CARD_DETAILS = {
-  showReading: { text: "Kana reading", short: "Kana" },
-  showMeaning: { text: "Translation", short: "Translation" },
-  showGroup: { text: "Verb group", short: "Group" },
+  showReading: { text: "Lecture en kana", short: "Kana" },
+  showMeaning: { text: "Traduction", short: "Traduction" },
+  showGroup: { text: "Groupe du verbe", short: "Groupe" },
 };
 const LENGTHS = [10, 20, 40];
 const CELLS_PER_ROW = 10;
@@ -74,6 +78,7 @@ function makeExercise(verb, formId) {
     answer: {
       main: answerInKanji ? result.kanji : result.kana,
       sub: answerInKanji ? result.kana : result.kanji || "",
+      french: translate(verb, formId),
     },
     rule: result.rule,
     check: (given) => isCorrect(verb, formId, given),
@@ -120,7 +125,7 @@ function showNext() {
   input.value = "";
   $("mark").toggleAttribute("hidden", true); // SVG elements have no .hidden property
   $("feedback").replaceChildren();
-  $("primary").textContent = "Check";
+  $("primary").textContent = "Vérifier";
   $("reveal").hidden = false;
   setHint();
   renderCells();
@@ -162,7 +167,7 @@ function setHint(message) {
   const hint = $("hint");
   hint.hidden = false;
   hint.textContent = message
-    || (wanakana ? "Type in romaji, kana or kanji." : "Type in kana or kanji.");
+    || (wanakana ? "Écris en romaji, kana ou kanji." : "Écris en kana ou kanji.");
   hint.classList.toggle("pen", Boolean(message));
 }
 
@@ -198,9 +203,9 @@ function renderProgress() {
   const firstPassDone = round.results.filter(Boolean).length;
   const waiting = round.queue.filter((card) => card.retry).length;
   const number = Math.min(firstPassDone + (round.answered ? 0 : 1), round.total);
-  let text = `Card ${number} of ${round.total}`;
-  if (round.current.retry && !round.answered) text = `${firstPassDone} of ${round.total} done`;
-  if (waiting) text += `, ${waiting} to retry`;
+  let text = `Carte ${number} sur ${round.total}`;
+  if (round.current.retry && !round.answered) text = `${firstPassDone} sur ${round.total} faites`;
+  if (waiting) text += `, ${waiting} à refaire`;
   $("progress").textContent = text;
   renderStrip($("strip"), true);
 }
@@ -266,7 +271,7 @@ function grade({ gaveUp }) {
   renderCells();
   if (!gaveUp) drawMark(right);
   renderFeedback(card, right, gaveUp);
-  $("primary").textContent = round.queue.length ? "Next" : "See results";
+  $("primary").textContent = round.queue.length ? "Suivant" : "Voir les résultats";
   $("reveal").hidden = true;
   $("hint").hidden = true;
   renderProgress();
@@ -275,7 +280,7 @@ function grade({ gaveUp }) {
 function renderFeedback(card, right, gaveUp) {
   const verdict = document.createElement("p");
   verdict.className = "verdict";
-  verdict.textContent = right ? "Correct" : gaveUp ? "The answer is" : "Not quite. The answer is";
+  verdict.textContent = right ? "Correct" : gaveUp ? "La réponse est" : "Pas tout à fait. La réponse est";
 
   const correction = document.createElement("p");
   correction.className = "correction";
@@ -289,22 +294,29 @@ function renderFeedback(card, right, gaveUp) {
 
   const rule = document.createElement("p");
   rule.className = "rule";
-  rule.textContent = right ? card.rule : `${card.rule}. This card comes back later in the round.`;
+  rule.textContent = right ? card.rule : `${card.rule}. Cette carte reviendra plus tard dans la manche.`;
 
-  $("feedback").replaceChildren(verdict, correction, rule);
+  $("feedback").replaceChildren(verdict, correction);
+  if (card.answer.french) {
+    const french = document.createElement("p");
+    french.className = "french";
+    french.textContent = card.answer.french;
+    $("feedback").append(french);
+  }
+  $("feedback").append(rule);
 }
 
 function showSummary() {
   const score = round.results.filter((result) => result === "right").length;
   $("drill").hidden = true;
   $("summary").hidden = false;
-  $("summary-title").textContent = `${score} of ${round.total} right on the first try`;
+  $("summary-title").textContent = `${score} sur ${round.total} justes du premier coup`;
   renderStrip($("summary-strip"), false);
 
   const count = round.mistakes.length;
   $("mistakes-title").textContent = count
-    ? `${count === 1 ? "1 card" : `${count} cards`} to review`
-    : "No mistakes this round.";
+    ? `${count === 1 ? "1 carte" : `${count} cartes`} à revoir`
+    : "Aucune erreur dans cette manche.";
 
   $("mistakes").replaceChildren(...round.mistakes.map(({ card, given }) => {
     const row = document.createElement("li");
@@ -325,7 +337,7 @@ function showSummary() {
     form.textContent = card.answer.main;
     const wrote = document.createElement("p");
     wrote.className = "wrote";
-    wrote.textContent = given ? `You wrote ${given}` : "You chose Show answer";
+    wrote.textContent = given ? `Tu as écrit ${given}` : "Tu as choisi Voir la réponse";
     right.append(form, wrote);
 
     row.append(left, right);
@@ -397,7 +409,7 @@ function toggleSettings(open) {
   if (open) toggleCheatsheet(false);
   $("settings").hidden = !open;
   $("settings-toggle").setAttribute("aria-expanded", String(open));
-  $("settings-toggle").textContent = open ? "Close settings" : "Settings";
+  $("settings-toggle").textContent = open ? "Fermer les réglages" : "Réglages";
 }
 
 function makeElement(tag, className, text) {
@@ -431,8 +443,8 @@ function buildGodanTable() {
   const table = makeElement("table", "cheat-shift");
   table.lang = "ja";
   const head = makeElement("tr");
-  const firstHead = makeHeader("Ends in", "col");
-  firstHead.lang = "en";
+  const firstHead = makeHeader("Finit en", "col");
+  firstHead.lang = "fr";
   head.append(firstHead);
   for (const end of Object.keys(GODAN_ROWS.a)) {
     const th = makeHeader("", "col");
@@ -531,9 +543,9 @@ function buildCheatsheet() {
     return section;
   };
   $("cheatsheet-groups").replaceChildren(
-    group(GROUPS.godan, buildGodanTable(), buildGodanExample(godan), note("う becomes わ, not あ.")),
-    group(GROUPS.ichidan, buildIchidanFormula(ichidan), note("帰る, 入る and 要る look ichidan but are godan.")),
-    group(`${GROUPS.irregular} and ${GROUPS["suru-noun"]}`, buildIrregularTable(irregular)),
+    group(GROUPS.godan, buildGodanTable(), buildGodanExample(godan), note("う devient わ, pas あ.")),
+    group(GROUPS.ichidan, buildIchidanFormula(ichidan), note("帰る, 入る et 要る ressemblent à des ichidan, mais sont des godan.")),
+    group(`${GROUPS.irregular} et ${GROUPS["suru-noun"]}`, buildIrregularTable(irregular)),
   );
 }
 
@@ -543,7 +555,7 @@ function toggleCheatsheet(open) {
   $("cheatsheet").hidden = !open;
   $("cards").hidden = open;
   $("cheatsheet-toggle").setAttribute("aria-expanded", String(open));
-  $("cheatsheet-toggle").textContent = open ? "Close cheatsheet" : "Cheatsheet";
+  $("cheatsheet-toggle").textContent = open ? "Fermer l'aide-mémoire" : "Aide-mémoire";
 }
 
 function wireCheatsheet() {
@@ -568,7 +580,7 @@ function wireEvents() {
     event.preventDefault();
     if (round.answered) return showNext();
     if (!normalize(toKana(input.value))) {
-      return setHint("Type an answer first, or choose Show answer.");
+      return setHint("Écris d'abord une réponse, ou choisis Voir la réponse.");
     }
     grade({ gaveUp: false });
   });
@@ -611,7 +623,7 @@ async function main() {
     if (!response.ok) throw new Error(`HTTP ${response.status}`);
     verbs = await response.json();
   } catch {
-    $("status").textContent = "The verb list did not load. Run python scripts/build_verbs.py, then reload this page.";
+    $("status").textContent = "La liste de verbes n'a pas pu se charger. Lance python scripts/build_verbs.py, puis recharge la page.";
     return;
   }
   $("status").hidden = true;

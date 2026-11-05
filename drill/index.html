@@ -1,6 +1,6 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>Dōshi Drill</title>
+<title>Entraînement Dōshi</title>
 <meta name="claude:viewport-fit-sides" content="cover">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -12,37 +12,37 @@
   <header class="bar">
     <h1 lang="ja">動詞ドリル</h1>
     <div class="bar-actions">
-      <button type="button" class="quiet" id="cheatsheet-toggle" aria-expanded="false" aria-controls="cheatsheet">Cheatsheet</button>
-      <button type="button" class="quiet" id="settings-toggle" aria-expanded="false" aria-controls="settings">Settings</button>
+      <button type="button" class="quiet" id="cheatsheet-toggle" aria-expanded="false" aria-controls="cheatsheet">Aide-mémoire</button>
+      <button type="button" class="quiet" id="settings-toggle" aria-expanded="false" aria-controls="settings">Réglages</button>
     </div>
   </header>
 
   <form id="settings" class="settings" hidden>
-    <fieldset id="set-forms"><legend>Forms</legend></fieldset>
-    <fieldset id="set-groups"><legend>Verb groups</legend></fieldset>
-    <fieldset id="set-length"><legend>Cards per round</legend></fieldset>
+    <fieldset id="set-forms"><legend>Formes</legend></fieldset>
+    <fieldset id="set-groups"><legend>Groupes de verbes</legend></fieldset>
+    <fieldset id="set-length"><legend>Cartes par manche</legend></fieldset>
     <div class="details">
-      <fieldset id="set-details"><legend>Show on cards</legend></fieldset>
-      <p class="hint">Changes apply right away. Anything hidden appears after you check your answer.</p>
+      <fieldset id="set-details"><legend>Afficher sur les cartes</legend></fieldset>
+      <p class="hint">Les changements s'appliquent tout de suite. Ce qui est masqué apparaît une fois ta réponse vérifiée.</p>
     </div>
-    <p id="settings-error" class="pen" role="alert" hidden>Choose at least one form and one verb group.</p>
-    <div class="actions"><button type="submit" class="solid" id="settings-start">Start new round</button></div>
+    <p id="settings-error" class="pen" role="alert" hidden>Choisis au moins une forme et un groupe de verbes.</p>
+    <div class="actions"><button type="submit" class="solid" id="settings-start">Commencer une nouvelle manche</button></div>
   </form>
 
   <section id="cheatsheet" class="cheatsheet" hidden>
-    <h2 id="cheatsheet-title" tabindex="-1">Cheatsheet</h2>
+    <h2 id="cheatsheet-title" tabindex="-1">Aide-mémoire</h2>
     <div id="cheatsheet-groups" class="cheat-groups"></div>
   </section>
 
   <main id="cards">
-    <p id="status">Loading your verbs…</p>
+    <p id="status">Chargement de tes verbes…</p>
 
     <section id="drill" hidden>
       <div class="progress">
         <div id="strip" class="strip" aria-hidden="true"></div>
         <div class="progress-line">
           <p id="progress"></p>
-          <div id="quick-details" class="quick" role="group" aria-label="Show on card"></div>
+          <div id="quick-details" class="quick" role="group" aria-label="Afficher sur la carte"></div>
         </div>
       </div>
 
@@ -59,7 +59,7 @@
         <label for="answer" class="target">
           <span id="form-label"></span>
           <span id="form-ending" class="ending" lang="ja"></span>
-          <span id="retry-tag" class="tag" hidden>Second try</span>
+          <span id="retry-tag" class="tag" hidden>Deuxième essai</span>
         </label>
 
         <div class="sheet">
@@ -71,8 +71,8 @@
         <div id="feedback" class="feedback" role="status" aria-live="polite"></div>
 
         <div class="actions">
-          <button type="submit" class="solid" id="primary">Check</button>
-          <button type="button" class="quiet" id="reveal">Show answer</button>
+          <button type="submit" class="solid" id="primary">Vérifier</button>
+          <button type="button" class="quiet" id="reveal">Voir la réponse</button>
         </div>
         <p id="hint" class="hint"></p>
       </form>
@@ -83,7 +83,7 @@
       <div id="summary-strip" class="strip" aria-hidden="true"></div>
       <h3 id="mistakes-title"></h3>
       <ul id="mistakes" class="mistakes"></ul>
-      <div class="actions"><button type="button" class="solid" id="again">Start another round</button></div>
+      <div class="actions"><button type="button" class="solid" id="again">Commencer une autre manche</button></div>
     </section>
   </main>
 </div>

@@ -1,19 +1,20 @@
 // Conjugation rules. No DOM here, so tests can run this file directly.
 //
 // To add a form: add one entry to FORMS, then add rows to the test table.
-// A form names which verb base it attaches to ("a" or "i") and its suffix.
+// A form names which verb base it attaches to ("a" or "i"), its suffix, and
+// whether its French translation is negative.
 
 export const FORMS = {
-  "plain-negative": { label: "Plain negative", ending: "〜ない", base: "a", suffix: "ない" },
-  "polite-affirmative": { label: "Polite", ending: "〜ます", base: "i", suffix: "ます" },
-  "polite-negative": { label: "Polite negative", ending: "〜ません", base: "i", suffix: "ません" },
+  "plain-negative": { label: "Forme neutre négative", ending: "〜ない", base: "a", suffix: "ない", negative: true },
+  "polite-affirmative": { label: "Forme polie", ending: "〜ます", base: "i", suffix: "ます", negative: false },
+  "polite-negative": { label: "Forme polie négative", ending: "〜ません", base: "i", suffix: "ません", negative: true },
 };
 
 export const GROUPS = {
   godan: "Godan",
   ichidan: "Ichidan",
-  irregular: "Irregular",
-  "suru-noun": "Noun + する",
+  irregular: "Irrégulier",
+  "suru-noun": "Nom + する",
 };
 
 export const GODAN_ROWS = {
@@ -24,7 +25,7 @@ const KURU_BASE = { a: "こ", i: "き" };
 const SURU_BASE = { a: "し", i: "し" };
 const HONORIFIC_BASE = { a: "ら", i: "い" };
 
-const isAru = (verb) => verb.class === "godan-る" && verb.reading === "ある";
+export const isAru = (verb) => verb.class === "godan-る" && verb.reading === "ある";
 const dropLast = (text, count = 1) => text.slice(0, text.length - count);
 
 export function groupOf(verb) {
@@ -43,7 +44,7 @@ function godan(verb, form) {
   return {
     kana: dropLast(verb.reading) + change,
     kanji: verb.kanji ? dropLast(verb.kanji) + change : null,
-    rule: `Godan ${end}: ${end} → ${GODAN_ROWS[form.base][end]} + ${form.suffix}`,
+    rule: `Godan ${end} : ${end} → ${GODAN_ROWS[form.base][end]} + ${form.suffix}`,
   };
 }
 
@@ -51,7 +52,7 @@ function ichidan(verb, form) {
   return {
     kana: dropLast(verb.reading) + form.suffix,
     kanji: verb.kanji ? dropLast(verb.kanji) + form.suffix : null,
-    rule: `Ichidan: drop る, add ${form.suffix}`,
+    rule: `Ichidan : on enlève る, on ajoute ${form.suffix}`,
   };
 }
 
@@ -60,7 +61,7 @@ function honorific(verb, form) {
   return {
     kana: dropLast(verb.reading) + change,
     kanji: verb.kanji ? dropLast(verb.kanji) + change : null,
-    rule: `Honorific る verb: る → ${HONORIFIC_BASE[form.base]} + ${form.suffix}`,
+    rule: `Verbe honorifique en る : る → ${HONORIFIC_BASE[form.base]} + ${form.suffix}`,
   };
 }
 
@@ -70,7 +71,7 @@ function suru(verb, form) {
     kana: dropLast(verb.reading, 2) + change,
     // 為る has no written kanji form in practice, so it stays kana only.
     kanji: verb.kanji.endsWith("する") ? dropLast(verb.kanji, 2) + change : null,
-    rule: `する is irregular: する → ${SURU_BASE[form.base]} + ${form.suffix}`,
+    rule: `する est irrégulier : する → ${SURU_BASE[form.base]} + ${form.suffix}`,
   };
 }
 
@@ -82,7 +83,7 @@ function kuru(verb, form) {
   return {
     kana: dropLast(verb.reading, 2) + change,
     kanji,
-    rule: `くる is irregular: くる → ${KURU_BASE[form.base]} + ${form.suffix}`,
+    rule: `くる est irrégulier : くる → ${KURU_BASE[form.base]} + ${form.suffix}`,
   };
 }
 
@@ -91,7 +92,7 @@ function aru(verb, form) {
     return {
       kana: form.suffix,
       kanji: null,
-      rule: `ある is irregular: its negative is simply ${form.suffix}`,
+      rule: `ある est irrégulier : son négatif est simplement ${form.suffix}`,
     };
   }
   return godan(verb, form);
