@@ -1,4 +1,4 @@
-import { conjugate, FORMS, GROUPS, groupOf, isCorrect, normalize } from "./conjugate.js";
+import { CHEATSHEET, conjugate, FORMS, GODAN_ROWS, GROUPS, groupOf, isCorrect, normalize, splitEnding } from "./conjugate.js";
 
 const STORAGE_KEY = "doshi-drill-settings";
 const DEFAULTS = {
@@ -394,9 +394,166 @@ function readChoices(name) {
 }
 
 function toggleSettings(open) {
+  if (open) toggleCheatsheet(false);
   $("settings").hidden = !open;
   $("settings-toggle").setAttribute("aria-expanded", String(open));
   $("settings-toggle").textContent = open ? "Close settings" : "Settings";
+}
+
+function makeElement(tag, className, text) {
+  const element = document.createElement(tag);
+  if (className) element.className = className;
+  if (text) element.textContent = text;
+  return element;
+}
+
+// A pen ring (right) or strike (wrong), drawn over one square.
+function makePenMark(right) {
+  const ns = "http://www.w3.org/2000/svg";
+  const svg = document.createElementNS(ns, "svg");
+  svg.setAttribute("class", "cheat-mark");
+  svg.setAttribute("viewBox", "0 0 100 100");
+  svg.setAttribute("aria-hidden", "true");
+  const path = document.createElementNS(ns, "path");
+  path.setAttribute("d", penPath(right, 100, 100));
+  svg.append(path);
+  return svg;
+}
+
+function makeHeader(text, scope) {
+  const th = makeElement("th", "", text);
+  th.scope = scope;
+  return th;
+}
+
+// One column per dictionary ending, one row per base the forms use.
+function buildGodanTable() {
+  const table = makeElement("table", "cheat-shift");
+  table.lang = "ja";
+  const head = makeElement("tr");
+  const firstHead = makeHeader("Ends in", "col");
+  firstHead.lang = "en";
+  head.append(firstHead);
+  for (const end of Object.keys(GODAN_ROWS.a)) {
+    const th = makeHeader("", "col");
+    th.append(makeElement("span", "cell", end));
+    head.append(th);
+  }
+  const thead = makeElement("thead");
+  thead.append(head);
+
+  const tbody = makeElement("tbody");
+  for (const [base, row] of Object.entries(GODAN_ROWS)) {
+    const forms = Object.values(FORMS).filter((form) => form.base === base);
+    if (!forms.length) continue;
+    const tr = makeElement("tr");
+    const label = makeHeader("", "row");
+    label.append(...forms.map((form) => makeElement("span", "", form.ending)));
+    tr.append(label);
+    for (const [end, sound] of Object.entries(row)) {
+      const square = makeElement("span", "cell cheat-ending", sound);
+      // The one sound that breaks the pattern: う becomes わ, not あ.
+      if (end === "う" && base === "a") square.append(makePenMark(true));
+      const td = makeElement("td");
+      td.append(square);
+      tr.append(td);
+    }
+    tbody.append(tr);
+  }
+  table.append(thead, tbody);
+  return table;
+}
+
+function buildGodanExample(verb) {
+  const line = makeElement("p", "cheat-example");
+  line.lang = "ja";
+  line.append(makeElement("span", "", `${verb.kanji} →`));
+  for (const formId of Object.keys(FORMS)) {
+    const { stem, ending } = splitEnding(verb.kanji, conjugate(verb, formId).kanji);
+    const form = makeElement("span", "", stem);
+    form.append(makeElement("span", "cheat-ending", ending));
+    line.append(form);
+  }
+  return line;
+}
+
+function buildIchidanFormula(verb) {
+  const suffixes = Object.values(FORMS).map((form) => form.suffix);
+  const line = makeElement("div", "cheat-formula");
+  line.lang = "ja";
+  line.setAttribute("role", "img");
+  line.setAttribute("aria-label", `${verb.kanji}: る → ${suffixes.join(", ")}`);
+  const word = makeElement("div", "cheat-word");
+  const chars = Array.from(verb.kanji);
+  chars.forEach((char, i) => {
+    const square = makeElement("span", "cell", char);
+    if (i === chars.length - 1) square.append(makePenMark(false));
+    word.append(square);
+  });
+  const add = makeElement("div", "cheat-add");
+  add.append(...suffixes.map((suffix) => makeElement("span", "cheat-ending", suffix)));
+  line.append(word, makeElement("span", "", "+"), add);
+  return line;
+}
+
+function buildIrregularTable(verbs) {
+  const table = makeElement("table", "cheat-table");
+  table.lang = "ja";
+  const head = makeElement("tr");
+  head.append(makeHeader("", "col"));
+  for (const form of Object.values(FORMS)) head.append(makeHeader(form.ending, "col"));
+  const thead = makeElement("thead");
+  thead.append(head);
+
+  const tbody = makeElement("tbody");
+  for (const verb of verbs) {
+    const tr = makeElement("tr");
+    tr.append(makeHeader(verb.kanji || verb.reading, "row"));
+    for (const formId of Object.keys(FORMS)) {
+      const { stem, ending } = splitEnding(verb.reading, conjugate(verb, formId).kana);
+      const td = verb.endingsOnly ? makeElement("td") : makeElement("td", "", stem);
+      if (verb.endingsOnly) td.append(makeElement("span", "stem-mark", "〜"));
+      td.append(makeElement("span", "cheat-ending", ending));
+      tr.append(td);
+    }
+    tbody.append(tr);
+  }
+  table.append(thead, tbody);
+  return table;
+}
+
+function buildCheatsheet() {
+  const { godan, ichidan, irregular } = CHEATSHEET;
+  const note = (text) => makeElement("p", "cheat-note", text);
+  const group = (title, ...content) => {
+    const section = makeElement("section", "cheat-group");
+    section.append(makeElement("h3", "", title), ...content);
+    return section;
+  };
+  $("cheatsheet-groups").replaceChildren(
+    group(GROUPS.godan, buildGodanTable(), buildGodanExample(godan), note("う becomes わ, not あ.")),
+    group(GROUPS.ichidan, buildIchidanFormula(ichidan), note("帰る, 入る and 要る look ichidan but are godan.")),
+    group(`${GROUPS.irregular} and ${GROUPS["suru-noun"]}`, buildIrregularTable(irregular)),
+  );
+}
+
+// The card stays as it was underneath, typed answer included.
+function toggleCheatsheet(open) {
+  if (open) toggleSettings(false);
+  $("cheatsheet").hidden = !open;
+  $("cards").hidden = open;
+  $("cheatsheet-toggle").setAttribute("aria-expanded", String(open));
+  $("cheatsheet-toggle").textContent = open ? "Close cheatsheet" : "Cheatsheet";
+}
+
+function wireCheatsheet() {
+  $("cheatsheet-toggle").addEventListener("click", () => {
+    const open = $("cheatsheet").hidden;
+    toggleCheatsheet(open);
+    window.scrollTo({ top: 0 });
+    if (open) $("cheatsheet-title").focus({ preventScroll: true });
+    else if (!$("drill").hidden) $("answer").focus({ preventScroll: true });
+  });
 }
 
 function wireEvents() {
@@ -446,6 +603,9 @@ function wireEvents() {
 }
 
 async function main() {
+  // Before the verb list loads: the cheatsheet doesn't need it.
+  buildCheatsheet();
+  wireCheatsheet();
   try {
     const response = await fetch("verbs.json");
     if (!response.ok) throw new Error(`HTTP ${response.status}`);

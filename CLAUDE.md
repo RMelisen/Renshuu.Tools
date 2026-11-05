@@ -7,7 +7,7 @@ Personal tools built on a Renshuu study data export: an export script and a conj
 - `renshuu_export.py`: calls the Renshuu API, writes `renshuu_export.json` and `renshuu_known.txt`.
 - `scripts/build_verbs.py`: turns the export into `drill/verbs.json`.
 - `scripts/suru_meanings.json`: hand-written French verb meanings for noun + する words, because the export only defines the noun.
-- `drill/conjugate.js`: conjugation rules, no DOM. `drill/app.js`: card flow and settings.
+- `drill/conjugate.js`: conjugation rules and cheatsheet examples, no DOM. `drill/app.js`: card flow, settings and cheatsheet display.
 - `tests/conjugate.test.mjs`: tests for the rules and the generated verb list.
 
 ## Commands
@@ -35,6 +35,7 @@ python -m http.server 8765 --directory drill
 ## Private data
 
 - Never commit `.env`, `renshuu_export.json`, `renshuu_known.txt` or `drill/verbs.json`. All are in `.gitignore`.
+- `CHEATSHEET` in `drill/conjugate.js` is committed. Keep its examples to common verbs chosen by hand, not taken from the study data.
 - The exports hold profile data and study history. `drill/verbs.json` is the only derived data that leaves this machine, and only inside the private artifact. Keep it limited to the fields `build_verbs.py` writes today.
 - `scripts/suru_meanings.json` is committed. Keep it to dictionary meanings, with entries that don't depend on which words have been studied.
 - The API key is read from `RENSHUU_API_KEY` or `.env`. Never hardcode it.

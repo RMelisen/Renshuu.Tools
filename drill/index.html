@@ -11,7 +11,10 @@
 <div class="app">
   <header class="bar">
     <h1 lang="ja">動詞ドリル</h1>
-    <button type="button" class="quiet" id="settings-toggle" aria-expanded="false" aria-controls="settings">Settings</button>
+    <div class="bar-actions">
+      <button type="button" class="quiet" id="cheatsheet-toggle" aria-expanded="false" aria-controls="cheatsheet">Cheatsheet</button>
+      <button type="button" class="quiet" id="settings-toggle" aria-expanded="false" aria-controls="settings">Settings</button>
+    </div>
   </header>
 
   <form id="settings" class="settings" hidden>
@@ -26,7 +29,12 @@
     <div class="actions"><button type="submit" class="solid" id="settings-start">Start new round</button></div>
   </form>
 
-  <main>
+  <section id="cheatsheet" class="cheatsheet" hidden>
+    <h2 id="cheatsheet-title" tabindex="-1">Cheatsheet</h2>
+    <div id="cheatsheet-groups" class="cheat-groups"></div>
+  </section>
+
+  <main id="cards">
     <p id="status">Loading your verbs…</p>
 
     <section id="drill" hidden>

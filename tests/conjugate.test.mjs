@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { existsSync, readFileSync } from "node:fs";
 import { test } from "node:test";
-import { conjugate, FORMS, groupOf, isCorrect } from "../drill/conjugate.js";
+import { CHEATSHEET, conjugate, FORMS, groupOf, isCorrect, splitEnding } from "../drill/conjugate.js";
 
 const verb = (kanji, reading, cls) => ({ kanji, reading, class: cls });
 
@@ -98,6 +98,36 @@ test("wrong conjugations of tricky verbs are rejected", () => {
 test("ある counts as irregular for filtering", () => {
   assert.equal(groupOf(verb("有る", "ある", "godan-る")), "irregular");
   assert.equal(groupOf(verb("帰る", "かえる", "godan-る")), "godan");
+});
+
+test("cheatsheet examples sit under their own group", () => {
+  assert.equal(groupOf(CHEATSHEET.godan), "godan");
+  assert.equal(groupOf(CHEATSHEET.ichidan), "ichidan");
+  for (const v of CHEATSHEET.irregular) {
+    assert.ok(["irregular", "suru-noun"].includes(groupOf(v)), v.reading);
+  }
+});
+
+test("the godan example has a written form for every form", () => {
+  for (const formId of Object.keys(FORMS)) {
+    assert.ok(conjugate(CHEATSHEET.godan, formId).kanji, formId);
+  }
+});
+
+test("cheatsheet marks only the part that changes", () => {
+  const cases = [
+    ["かう", "かわない", "か", "わない"],
+    ["たべる", "たべます", "たべ", "ます"],
+    ["みる", "みない", "み", "ない"],
+    ["くる", "こない", "", "こない"],
+    ["する", "します", "", "します"],
+    ["ある", "ない", "", "ない"],
+    ["くださる", "くださいます", "くださ", "います"],
+    ["べんきょうする", "べんきょうしません", "べんきょう", "しません"],
+  ];
+  for (const [reading, kana, stem, ending] of cases) {
+    assert.deepEqual(splitEnding(reading, kana), { stem, ending }, kana);
+  }
 });
 
 const meanings = JSON.parse(readFileSync(new URL("../scripts/suru_meanings.json", import.meta.url), "utf-8"));

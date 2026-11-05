@@ -62,6 +62,8 @@ A card you miss comes back later in the round as a second try. The results scree
 
 Under **Show on cards** in Settings, you can show or hide the kana reading, the translation and the verb group (Godan, Ichidan, Irregular or Noun + する). These changes apply right away, and anything hidden appears after you check your answer. The small **Kana**, **Translation** and **Group** buttons above each card change the same settings without opening Settings. A crossed-out button means that detail is hidden.
 
+**Cheatsheet** is a one-page summary of the rules: a grid of how godan endings shift, the ichidan rule, and the irregular verbs, with the changing part in red. Closing it brings you back to your card, with anything you had typed still there.
+
 To add verbs you have studied since, rerun the export and the verb list script, then reload the page.
 
 Renshuu only defines the noun in a noun + する verb, so 携帯 is "téléphone portable" while 携帯する means "porter sur soi". The verb meanings shown on cards come from a hand-written table, [`scripts/suru_meanings.json`](scripts/suru_meanings.json). A word missing from the table shows its own definition after `sans する :`, and the verb list script names it so you can add it.
@@ -74,4 +76,4 @@ Renshuu only defines the noun in a noun + する verb, so 携帯 is "téléphone
 node --test
 ```
 
-To add a form, add an entry to `FORMS` in `drill/conjugate.js` and rows to the table in `tests/conjugate.test.mjs`.
+To add a form, add an entry to `FORMS` in `drill/conjugate.js` and rows to the table in `tests/conjugate.test.mjs`. The cheatsheet picks up the new form by itself.
