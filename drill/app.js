@@ -16,6 +16,21 @@ const DEFAULTS = {
   showMeaning: true,
   showGroup: true,
   showEnding: true,
+  palette: "violet",
+  font: "pop",
+};
+const PALETTES = {
+  violet: "Ruban violet",
+  marin: "Uniforme marin",
+  menthe: "Menthe et magenta",
+  ciel: "Ciel étoilé",
+  aurore: "Aurore",
+  nineties: "Pastels années 90",
+};
+const FONTS = { pop: "Mochiy Pop", rounded: "M PLUS Rounded" };
+const HIT_SOUNDS = {
+  right: ["正解！", "やった！", "すごい！", "完璧！"],
+  missed: ["残念", "あれ？", "おしい！", "もう一回"],
 };
 const CARD_DETAILS = {
   showReading: { text: "Lecture en kana", short: "Kana" },
@@ -26,7 +41,6 @@ const CARD_DETAILS = {
 const LENGTHS = [10, 20, 40];
 const TENSES = { present: "Présent", past: "Passé", te: "Forme en て" };
 const formIdsOf = (tense) => Object.keys(FORMS).filter((id) => FORMS[id].tense === tense);
-const CELLS_PER_ROW = 10;
 
 const $ = (id) => document.getElementById(id);
 const wanakana = window.wanakana; // optional: kana and kanji still work without it
@@ -34,6 +48,7 @@ const wanakana = window.wanakana; // optional: kana and kanji still work without
 let verbs = [];
 let settings = loadSettings();
 let round = null;
+applyLook();
 
 function loadSettings() {
   try {
@@ -47,6 +62,8 @@ function loadSettings() {
     ];
     merged.forms = withNew(merged.forms, FORMS, saved.seenForms ?? FIRST_FORMS);
     merged.groups = withNew(merged.groups, GROUPS, saved.seenGroups ?? FIRST_GROUPS);
+    if (!PALETTES[merged.palette]) merged.palette = DEFAULTS.palette;
+    if (!FONTS[merged.font]) merged.font = DEFAULTS.font;
     return merged.forms.length && merged.groups.length ? merged : { ...DEFAULTS };
   } catch {
     return { ...DEFAULTS };
@@ -63,6 +80,11 @@ function saveSettings() {
   } catch {
     // Settings then last for this visit only.
   }
+}
+
+function applyLook() {
+  document.documentElement.dataset.palette = settings.palette;
+  document.documentElement.dataset.font = settings.font;
 }
 
 function shuffle(items) {
@@ -148,12 +170,13 @@ function showNext() {
   const input = $("answer");
   input.readOnly = false;
   input.value = "";
-  $("mark").toggleAttribute("hidden", true); // SVG elements have no .hidden property
+  input.classList.remove("struck");
+  fitAnswer();
+  delete $("drill").dataset.result;
   $("feedback").replaceChildren();
   $("primary").textContent = "Vérifier";
   $("reveal").hidden = false;
   setHint();
-  renderCells();
   renderProgress();
   input.focus({ preventScroll: true });
 }
@@ -195,21 +218,8 @@ function setHint(message) {
   hint.textContent = message ?? "";
 }
 
-function renderCells() {
-  const input = $("answer");
-  const chars = Array.from(input.value);
-  const rows = Math.ceil((chars.length + 1) / CELLS_PER_ROW);
-  const caret = round.answered || document.activeElement !== input
-    ? -1
-    : Array.from(input.value.slice(0, input.selectionStart ?? input.value.length)).length;
-  const cells = [];
-  for (let i = 0; i < rows * CELLS_PER_ROW; i++) {
-    const cell = document.createElement("span");
-    cell.className = i === caret ? "cell caret" : "cell";
-    cell.textContent = chars[i] ?? "";
-    cells.push(cell);
-  }
-  $("cells").replaceChildren(...cells);
+function fitAnswer() {
+  $("answer").style.setProperty("--chars", Math.max(Array.from($("answer").value).length, 1));
 }
 
 function renderStrip(target, withCurrent) {
@@ -226,11 +236,12 @@ function renderStrip(target, withCurrent) {
 function renderProgress() {
   const firstPassDone = round.results.filter(Boolean).length;
   const waiting = round.queue.filter((card) => card.retry).length;
-  const number = Math.min(firstPassDone + (round.answered ? 0 : 1), round.total);
-  let text = `Carte ${number} sur ${round.total}`;
-  if (round.current.retry && !round.answered) text = `${firstPassDone} sur ${round.total} faites`;
-  if (waiting) text += `, ${waiting} à refaire`;
-  $("progress").textContent = text;
+  const onRetry = round.current.retry && !round.answered;
+  const number = onRetry ? firstPassDone : Math.min(firstPassDone + (round.answered ? 0 : 1), round.total);
+  $("progress").textContent = `${number}/${round.total}`;
+  let label = onRetry ? `${number} sur ${round.total} faites` : `Carte ${number} sur ${round.total}`;
+  if (waiting) label += `, ${waiting} à refaire`;
+  $("progress").setAttribute("aria-label", label);
   renderStrip($("strip"), true);
 }
 
@@ -246,23 +257,39 @@ function penPath(right, w, h) {
   return `M ${p(0.02, 0.8)} C ${p(0.3, 0.68)}, ${p(0.65, 0.42)}, ${p(0.98, 0.2)}`;
 }
 
-function drawMark(right) {
-  const length = Array.from($("answer").value).length;
-  if (!length) return;
-  const sheet = document.querySelector(".sheet").getBoundingClientRect();
-  const portion = Math.min(length, CELLS_PER_ROW) / CELLS_PER_ROW;
-  const width = sheet.width * portion;
-  const mark = $("mark");
-  mark.style.width = `${portion * 100}%`;
-  mark.setAttribute("viewBox", `0 0 ${width} ${sheet.height}`);
-  mark.setAttribute("preserveAspectRatio", "none");
-  const path = $("mark-path");
-  path.setAttribute("d", penPath(right, width, sheet.height));
-  mark.toggleAttribute("hidden", false);
-  // Restart the stroke animation for this card.
-  path.style.animation = "none";
-  void path.getBoundingClientRect();
-  path.style.animation = "";
+// The rays and stars behind a reaction, drawn once. CSS shows one group or the
+// other, so the colours follow the theme and the fill stays out of this code.
+function buildHitRays() {
+  const [cx, cy, reach, count] = [200, 190, 720, 70];
+  const point = (angle, radius) => `${(cx + radius * Math.cos(angle)).toFixed(1)} ${(cy + radius * Math.sin(angle)).toFixed(1)}`;
+  const wedges = [];
+  for (let i = 0; i < count; i++) {
+    const angle = (i / count) * 2 * Math.PI;
+    const spread = 0.018 + (i % 3) * 0.012;
+    const inner = i % 2 ? 88 : 122;
+    wedges.push(`<path class="${i % 2 ? "ray-b" : "ray-a"}" d="M${point(angle - spread, reach)} L${point(angle, inner)} L${point(angle + spread, reach)}Z"/>`);
+  }
+  const star = (x, y, r, className) => `<path class="${className}" d="M${x} ${y - r}Q${x} ${y} ${x + r} ${y}Q${x} ${y} ${x} ${y + r}Q${x} ${y} ${x - r} ${y}Q${x} ${y} ${x} ${y - r}Z"/>`;
+  const spots = [[52, 80, 21], [334, 58, 29], [362, 214, 16], [30, 254, 27], [200, 40, 13], [122, 160, 12], [294, 146, 15], [80, 360, 13], [350, 360, 19]];
+  $("hit-rays").innerHTML = `<g class="burst">${wedges.join("")}${spots.map(([x, y, r]) => star(x, y, r * 1.5, "star")).join("")}</g>`
+    + `<g class="fallen">${spots.map(([x, y, r]) => star(x, y + 80, r * 0.8, "fallen-star")).join("")}</g>`;
+}
+
+// The word lands on the answer, then settles beside the button that moves on. Their
+// height depends on the card's text, so measure once the feedback is on the card.
+// Clearing the result in showNext is what lets the animations run again next card.
+function playHit(result) {
+  const words = HIT_SOUNDS[result];
+  $("hit-sound").textContent = words[Math.floor(Math.random() * words.length)];
+  const middle = (element) => {
+    const box = element.getBoundingClientRect();
+    return box.top + box.height / 2;
+  };
+  const panel = $("drill");
+  const panelTop = panel.getBoundingClientRect().top + panel.clientTop;
+  panel.style.setProperty("--word-settle", `${middle($("primary")) - panelTop}px`);
+  panel.style.setProperty("--word-rise", `${middle($("answer")) - middle($("primary"))}px`);
+  panel.dataset.result = result;
 }
 
 // A trailing "n" stays Latin while typing (it might become な), so convert the
@@ -292,19 +319,20 @@ function grade({ gaveUp }) {
   }
 
   renderCue();
-  renderCells();
-  if (!gaveUp) drawMark(right);
+  fitAnswer();
+  input.classList.toggle("struck", !right && !gaveUp);
   renderFeedback(card, right, gaveUp);
   $("primary").textContent = round.queue.length ? "Suivant" : "Voir les résultats";
   $("reveal").hidden = true;
   $("hint").hidden = true;
   renderProgress();
+  if (!gaveUp) playHit(right ? "right" : "missed");
 }
 
 function renderFeedback(card, right, gaveUp) {
   const verdict = document.createElement("p");
   verdict.className = "verdict";
-  verdict.textContent = right ? "Correct" : gaveUp ? "La réponse est" : "Pas tout à fait. La réponse est";
+  verdict.textContent = right ? "Bonne réponse" : gaveUp ? "La réponse est" : "Pas tout à fait. La réponse est";
 
   const correction = document.createElement("p");
   correction.className = "correction";
@@ -388,6 +416,7 @@ function buildChoice(container, { type, name, value, checked, text, count }) {
     label.append(span);
   }
   container.append(label);
+  return label;
 }
 
 function buildSettings() {
@@ -414,6 +443,22 @@ function buildSettings() {
       type: "radio", name: "length", value: String(length),
       checked: settings.length === length, text: String(length),
     });
+  }
+  for (const [id, text] of Object.entries(PALETTES)) {
+    const label = buildChoice($("set-palette"), {
+      type: "radio", name: "palette", value: id, checked: settings.palette === id, text,
+    });
+    const swatch = makeElement("span", "swatch");
+    swatch.dataset.palette = id;
+    swatch.setAttribute("aria-hidden", "true");
+    swatch.append(...Array.from({ length: 4 }, () => document.createElement("i")));
+    label.append(swatch);
+  }
+  for (const [id, text] of Object.entries(FONTS)) {
+    const label = buildChoice($("set-font"), {
+      type: "radio", name: "font", value: id, checked: settings.font === id, text,
+    });
+    label.classList.add(`sample-${id}`);
   }
   for (const [key, { text, short }] of Object.entries(CARD_DETAILS)) {
     buildChoice($("set-details"), {
@@ -687,11 +732,8 @@ function wireCheatsheet() {
 
 function wireEvents() {
   const input = $("answer");
-  const redraw = () => setTimeout(renderCells);
-  // WanaKana rewrites the value in its own listener, so redraw just after it.
-  for (const type of ["input", "keyup", "click", "focus", "blur", "select", "compositionupdate", "compositionend"]) {
-    input.addEventListener(type, redraw);
-  }
+  // WanaKana rewrites the value in its own listener, so measure just after it.
+  input.addEventListener("input", () => setTimeout(fitAnswer));
 
   $("answer-form").addEventListener("submit", (event) => {
     event.preventDefault();
@@ -710,6 +752,13 @@ function wireEvents() {
   $("set-details").addEventListener("change", (event) => {
     setDetail(event.target.value, event.target.checked);
   });
+  for (const key of ["palette", "font"]) {
+    $(`set-${key}`).addEventListener("change", (event) => {
+      settings[key] = event.target.value;
+      saveSettings();
+      applyLook();
+    });
+  }
   // Clicking a button leaves the cursor in the answer, so typing carries on.
   $("quick-details").addEventListener("mousedown", (event) => event.preventDefault());
   $("quick-details").addEventListener("click", (event) => {
@@ -745,6 +794,7 @@ async function main() {
   }
   $("status").hidden = true;
   if (wanakana) wanakana.bind($("answer"), { IMEMode: "toHiragana" });
+  buildHitRays();
   buildSettings();
   wireEvents();
   startRound();

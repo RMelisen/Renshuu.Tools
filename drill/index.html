@@ -4,7 +4,7 @@
 <meta name="claude:viewport-fit-sides" content="cover">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Klee+One:wght@400;600&family=Zen+Kaku+Gothic+New:wght@400;500;700&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=M+PLUS+Rounded+1c:wght@500;800&family=Mochiy+Pop+One&display=swap">
 <link rel="stylesheet" href="style.css">
 <script src="https://cdn.jsdelivr.net/npm/wanakana@5.3.1/wanakana.min.js"></script>
 
@@ -21,6 +21,8 @@
     <fieldset id="set-forms"><legend>Formes</legend></fieldset>
     <fieldset id="set-groups"><legend>Groupes de mots</legend></fieldset>
     <fieldset id="set-length"><legend>Cartes par manche</legend></fieldset>
+    <fieldset id="set-palette"><legend>Couleurs</legend></fieldset>
+    <fieldset id="set-font"><legend>Police</legend></fieldset>
     <div class="details">
       <fieldset id="set-details"><legend>Afficher sur les cartes</legend></fieldset>
       <p class="hint">Les changements s'appliquent tout de suite. Ce qui est masqué apparaît une fois ta réponse vérifiée.</p>
@@ -38,12 +40,17 @@
     <p id="status">Chargement de tes mots…</p>
 
     <section id="drill" hidden>
+      <div class="hit" aria-hidden="true">
+        <svg id="hit-rays" class="hit-rays" viewBox="0 0 400 600" preserveAspectRatio="xMidYMid slice"></svg>
+        <p id="hit-sound" class="hit-sound" lang="ja"></p>
+      </div>
+
       <div class="progress">
-        <div id="strip" class="strip" aria-hidden="true"></div>
         <div class="progress-line">
-          <p id="progress"></p>
-          <div id="quick-details" class="quick" role="group" aria-label="Afficher sur la carte"></div>
+          <p id="progress" role="img"></p>
+          <div id="strip" class="strip" aria-hidden="true"></div>
         </div>
+        <div id="quick-details" class="quick" role="group" aria-label="Afficher sur la carte"></div>
       </div>
 
       <div class="cue">
@@ -62,11 +69,7 @@
           <span id="retry-tag" class="tag" hidden>Deuxième essai</span>
         </label>
 
-        <div class="sheet">
-          <div id="cells" class="cells" lang="ja" aria-hidden="true"></div>
-          <svg id="mark" class="mark" aria-hidden="true" hidden><path id="mark-path" pathLength="1"></path></svg>
-          <input id="answer" type="text" lang="ja" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" enterkeyhint="done">
-        </div>
+        <input id="answer" type="text" lang="ja" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" enterkeyhint="done">
 
         <div id="feedback" class="feedback" role="status" aria-live="polite"></div>
 
