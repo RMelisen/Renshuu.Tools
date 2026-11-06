@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { existsSync, readFileSync } from "node:fs";
 import { test } from "node:test";
-import { CHEATSHEET, conjugate, FORMS, groupOf, hasForm, isCorrect, splitEnding } from "../drill/conjugate.js";
+import { CHEATSHEET, conjugate, findMistake, FORMS, groupOf, hasForm, isCorrect, splitEnding } from "../drill/conjugate.js";
 
 const verb = (kanji, reading, cls) => ({ kanji, reading, class: cls });
 
@@ -309,6 +309,35 @@ test("wrong conjugations of tricky verbs are rejected", () => {
   assert.ok(!isCorrect(verb("買う", "かう", "godan-う"), "plain-negative", "かあない"));
   assert.ok(!isCorrect(verb("帰る", "かえる", "godan-る"), "plain-negative", "かえない"));
   assert.ok(!isCorrect(verb("来る", "くる", "kuru"), "plain-negative", "きない"));
+});
+
+test("a wrong answer points at the part that differs", () => {
+  const kaeru = verb("帰る", "かえる", "godan-る");
+  assert.deepEqual(findMistake(kaeru, "polite-affirmative", "かえます"), {
+    form: "かえります", before: "かえ", wrote: "", expected: "り", after: "ます",
+  });
+  const kaku = verb("書く", "かく", "godan-く");
+  assert.deepEqual(findMistake(kaku, "plain-past", "かきた"), {
+    form: "かいた", before: "か", wrote: "き", expected: "い", after: "た",
+  });
+  assert.deepEqual(findMistake(kaku, "plain-past", "書きた"), {
+    form: "書いた", before: "書", wrote: "き", expected: "い", after: "た",
+  });
+  assert.deepEqual(findMistake(verb("行く", "いく", "godan-く"), "plain-past", "いきった"), {
+    form: "いった", before: "い", wrote: "き", expected: "", after: "った",
+  });
+});
+
+test("a right answer, or one with nothing in common, points at nothing", () => {
+  const taberu = verb("食べる", "たべる", "ichidan");
+  assert.equal(findMistake(taberu, "polite-affirmative", "食べます。"), null);
+  assert.equal(findMistake(taberu, "polite-affirmative", "のむ"), null);
+});
+
+test("a wrong answer is compared with the closest accepted spelling", () => {
+  const takai = verb("高い", "たかい", "i-adj");
+  assert.equal(findMistake(takai, "polite-negative", "たかくありまぜん").form, "たかくありません");
+  assert.equal(findMistake(verb("", "コピーする", "suru"), "polite-affirmative", "こぴーしまう").form, "コピーします");
 });
 
 test("ある counts as irregular for filtering", () => {

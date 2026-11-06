@@ -237,3 +237,37 @@ export function isCorrect(verb, formId, answer) {
   const { kana, kanji, alternatives = [] } = conjugate(verb, formId);
   return [kana, kanji, ...alternatives].some((form) => form !== null && given === normalize(form));
 }
+
+// Where a wrong answer parts from the closest correct spelling: `wrote` is what was
+// typed in place of `expected`, between the shared `before` and `after`. Returns
+// null for a right answer, or when the two share nothing to point from.
+export function findMistake(verb, formId, answer) {
+  const given = Array.from(normalize(answer));
+  const { kana, kanji, alternatives = [] } = conjugate(verb, formId);
+  let best = null;
+  for (const form of [kana, kanji, ...alternatives]) {
+    if (form === null) continue;
+    const folded = Array.from(normalize(form));
+    const chars = Array.from(form).length === folded.length ? Array.from(form) : folded;
+    let start = 0;
+    while (start < given.length && start < folded.length && given[start] === folded[start]) start++;
+    let end = 0;
+    while (
+      end < given.length - start && end < folded.length - start
+      && given[given.length - 1 - end] === folded[folded.length - 1 - end]
+    ) end++;
+    if (start + end === given.length && given.length === folded.length) return null;
+    if (best && start + end <= best.shared) continue;
+    best = {
+      shared: start + end,
+      form,
+      before: chars.slice(0, start).join(""),
+      wrote: given.slice(start, given.length - end).join(""),
+      expected: chars.slice(start, chars.length - end).join(""),
+      after: chars.slice(chars.length - end).join(""),
+    };
+  }
+  if (!best?.shared) return null;
+  const { shared, ...parts } = best;
+  return parts;
+}

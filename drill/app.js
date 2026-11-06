@@ -1,4 +1,4 @@
-import { CHEATSHEET, conjugate, FORMS, GODAN_ROWS, GROUPS, groupOf, hasForm, isCorrect, normalize, splitEnding } from "./conjugate.js";
+import { CHEATSHEET, conjugate, findMistake, FORMS, GODAN_ROWS, GROUPS, groupOf, hasForm, isCorrect, normalize, splitEnding } from "./conjugate.js";
 import { translate } from "./french.js";
 
 // index.html has no <html> tag of its own: publishing wraps it in a skeleton.
@@ -16,6 +16,7 @@ const DEFAULTS = {
   showMeaning: true,
   showGroup: true,
   showEnding: true,
+  vibrate: true,
   palette: "violet",
   font: "pop",
 };
@@ -110,7 +111,9 @@ function makeExercise(verb, formId) {
   const kanaLead = verb.kanaFirst || !verb.kanji;
   const answerInKanji = !kanaLead && result.kanji;
   return {
+    verbId: verb.id,
     formId,
+    cheatSection: cheatSectionId(verb, formId),
     prompt: { label: form.label, ending: result.ending ?? form.ending },
     cue: {
       main: kanaLead ? verb.reading : verb.kanji,
@@ -126,7 +129,26 @@ function makeExercise(verb, formId) {
     },
     rule: result.rule,
     check: (given) => isCorrect(verb, formId, given),
+    mistake: (given) => findMistake(verb, formId, given),
   };
+}
+
+// The cheatsheet part that explains a card: adjectives have their own, verbs sit
+// under the card's tense. Irregular verbs and noun + する share a table.
+function cheatSectionId(verb, formId) {
+  const group = groupOf(verb);
+  if (group === "i-adj" || group === "na-adj") return `cheat-${group}`;
+  const kind = group === "godan" || group === "ichidan" ? group : "irregular";
+  return `cheat-${FORMS[formId].tense}-${kind}`;
+}
+
+// A card is saved by what it asks, and rebuilt from the verb list on load.
+const cardRef = ({ verbId, formId, slot, retry }) => ({ verbId, formId, slot, retry });
+
+function cardFromRef({ verbId, formId, slot, retry }) {
+  const verb = verbs.find((v) => v.id === verbId);
+  if (!verb || !FORMS[formId] || !hasForm(verb, formId)) return null;
+  return { ...makeExercise(verb, formId), slot, retry: Boolean(retry) };
 }
 
 // Each verb appears once before any verb repeats, and a repeated verb gets a
@@ -154,12 +176,65 @@ function buildCards() {
   return cards;
 }
 
-function startRound() {
-  const queue = buildCards();
+function startRound(queue = buildCards()) {
   round = { queue, total: queue.length, results: [], mistakes: [], current: null, answered: false };
   $("summary").hidden = true;
   $("drill").hidden = false;
   showNext();
+}
+
+// A new round with only the cards missed in the one just finished, each asked once
+// more in a new order.
+function reviewMistakes() {
+  const cards = shuffle(round.mistakes.map(({ card }) => card));
+  startRound(cards.map((card, slot) => cardFromRef({ ...card, slot, retry: false })));
+}
+
+// The round is saved after every card, so a reload or a phone closing the page picks
+// up where it stopped. An unanswered card goes back to the front of the queue. An
+// answered one is already counted, so the round resumes at the next card.
+const ROUND_KEY = "doshi-drill-round";
+
+function saveRound() {
+  try {
+    const waiting = round.answered ? round.queue : [round.current, ...round.queue];
+    localStorage.setItem(ROUND_KEY, JSON.stringify({
+      total: round.total,
+      results: round.results,
+      queue: waiting.map(cardRef),
+      mistakes: round.mistakes.map(({ card, given }) => ({ ...cardRef(card), given })),
+    }));
+  } catch {
+    // The round then lasts for this visit only.
+  }
+}
+
+function forgetRound() {
+  try {
+    localStorage.removeItem(ROUND_KEY);
+  } catch {
+    // Nothing was saved.
+  }
+}
+
+// Returns false when there is no saved round, or one that no longer fits the verb
+// list, so a new round starts instead.
+function resumeRound() {
+  let saved;
+  try {
+    saved = JSON.parse(localStorage.getItem(ROUND_KEY));
+  } catch {
+    return false;
+  }
+  if (!saved?.queue?.length) return false;
+  const queue = saved.queue.map(cardFromRef);
+  const mistakes = (saved.mistakes ?? []).map(({ given, ...ref }) => ({ card: cardFromRef(ref), given }));
+  if (queue.includes(null) || mistakes.some(({ card }) => !card)) return false;
+  round = { queue, total: saved.total, results: saved.results ?? [], mistakes, current: null, answered: false };
+  $("summary").hidden = true;
+  $("drill").hidden = false;
+  showNext();
+  return true;
 }
 
 function showNext() {
@@ -184,6 +259,7 @@ function showNext() {
   $("reveal").hidden = false;
   setHint();
   renderProgress();
+  saveRound();
   input.focus({ preventScroll: true });
 }
 
@@ -229,29 +305,6 @@ function setHint(message) {
 
 function fitAnswer() {
   $("answer").style.setProperty("--chars", Math.max(Array.from($("answer").value).length, 1));
-}
-
-// On a phone the keyboard covers the bottom of the page, and inside the artifact
-// frame the browser doesn't always scroll the answer clear of it. When the answer is
-// under the keyboard or off screen, bring it to the middle of what is still visible.
-// Where the visual viewport doesn't shrink for the keyboard, assume it takes the
-// lower 45%.
-function keepAnswerVisible() {
-  if (!matchMedia("(pointer: coarse)").matches || $("drill").hidden) return;
-  const view = window.visualViewport;
-  const top = view ? view.offsetTop : 0;
-  const height = view ? view.height : window.innerHeight;
-  const keyboardShrankView = view && view.height < window.innerHeight * 0.8;
-  const bottom = top + (keyboardShrankView ? height : height * 0.55);
-  const box = $("answer").getBoundingClientRect();
-  if (box.top >= top && box.bottom <= bottom) return;
-  const shift = box.top + box.height / 2 - (top + bottom) / 2;
-  window.scrollTo({ top: window.scrollY + shift, behavior: "smooth" });
-}
-
-// The keyboard slides in after focus, so check again once it has settled.
-function keepAnswerVisibleSoon() {
-  setTimeout(keepAnswerVisible, 350);
 }
 
 function renderStrip(target, withCurrent) {
@@ -353,15 +406,51 @@ function grade({ gaveUp }) {
   renderCue();
   fitAnswer();
   input.classList.toggle("struck", !right && !gaveUp);
-  renderFeedback(card, right, gaveUp);
+  renderFeedback(card, right, gaveUp, given);
   $("primary").textContent = round.queue.length ? "Suivant" : "Voir les résultats";
   $("reveal").hidden = true;
   $("hint").hidden = true;
   renderProgress();
-  if (!gaveUp) playHit(right ? "right" : "missed");
+  saveRound();
+  if (gaveUp) return;
+  playHit(right ? "right" : "missed");
+  if (!right && settings.vibrate) buzz();
 }
 
-function renderFeedback(card, right, gaveUp) {
+// Android only: iPhones have no vibration for web pages. Returns false when the
+// browser refuses. It can also accept and stay still, when the app showing the page
+// lacks Android's vibration permission or the phone has vibration off.
+function buzz() {
+  try {
+    return Boolean(navigator.vibrate?.([60, 40, 60]));
+  } catch {
+    return false;
+  }
+}
+
+// A spelling with the part that differs from the typed answer marked, when the
+// mistake points at that spelling.
+function spelling(text, mistake) {
+  if (mistake?.form !== text || !mistake.expected) return [text];
+  return [mistake.before, makeElement("mark", "diff", mistake.expected), mistake.after];
+}
+
+// Says in a few words what went wrong: "Tu as écrit « き » au lieu de « い »."
+function describeMistake({ wrote, expected }) {
+  const line = makeElement("p", "mistake");
+  const quote = (text) => {
+    const span = makeElement("span", "", `« ${text} »`);
+    span.lang = "ja";
+    return span;
+  };
+  if (wrote && expected) line.append("Tu as écrit ", quote(wrote), " au lieu de ", quote(expected), ".");
+  else if (expected) line.append("Il manquait ", quote(expected), ".");
+  else line.append(quote(wrote), " en trop.");
+  return line;
+}
+
+function renderFeedback(card, right, gaveUp, given) {
+  const mistake = right || gaveUp ? null : card.mistake(given);
   const verdict = document.createElement("p");
   verdict.className = "verdict";
   verdict.textContent = right ? "Bonne réponse" : gaveUp ? "La réponse est" : "Pas tout à fait. La réponse est";
@@ -369,10 +458,10 @@ function renderFeedback(card, right, gaveUp) {
   const correction = document.createElement("p");
   correction.className = "correction";
   correction.lang = "ja";
-  correction.textContent = card.answer.main;
+  correction.append(...spelling(card.answer.main, mistake));
   if (card.answer.sub) {
     const small = document.createElement("small");
-    small.textContent = card.answer.sub;
+    small.append(...spelling(card.answer.sub, mistake));
     correction.append(small);
   }
 
@@ -381,6 +470,7 @@ function renderFeedback(card, right, gaveUp) {
   rule.textContent = right ? card.rule : `${card.rule}. Cette carte reviendra plus tard dans la manche.`;
 
   $("feedback").replaceChildren(verdict, correction);
+  if (mistake) $("feedback").append(describeMistake(mistake));
   if (card.answer.french) {
     const french = document.createElement("p");
     french.className = "french";
@@ -388,6 +478,12 @@ function renderFeedback(card, right, gaveUp) {
     $("feedback").append(french);
   }
   $("feedback").append(rule);
+  if (!right) {
+    const link = makeElement("button", "quiet cheat-link", "Revoir la règle dans l'aide-mémoire");
+    link.type = "button";
+    link.dataset.section = card.cheatSection;
+    $("feedback").append(link);
+  }
 }
 
 function showSummary() {
@@ -397,10 +493,14 @@ function showSummary() {
   $("summary-title").textContent = `${score} sur ${round.total} justes du premier coup`;
   renderStrip($("summary-strip"), false);
 
+  forgetRound();
   const count = round.mistakes.length;
   $("mistakes-title").textContent = count
     ? `${count === 1 ? "1 carte" : `${count} cartes`} à revoir`
     : "Aucune erreur dans cette manche.";
+  $("review").hidden = !count;
+  $("review").textContent = count === 1 ? "Revoir mon erreur" : `Revoir mes ${count} erreurs`;
+  $("again").className = count ? "quiet" : "solid";
 
   $("mistakes").replaceChildren(...round.mistakes.map(({ card, given }) => {
     const row = document.createElement("li");
@@ -671,9 +771,13 @@ function buildCheatsheet() {
   const pastForms = formIdsOf("past");
   const pastNeutral = pastForms.filter((id) => id.startsWith("plain"));
   const pastPolite = pastForms.filter((id) => !id.startsWith("plain"));
-  const group = (title, ...content) => {
+  // The id is what a missed card links to: see cheatSectionId.
+  const group = (id, title, ...content) => {
     const section = makeElement("section", "cheat-group");
-    section.append(makeElement("h4", "", title), ...content);
+    section.id = id;
+    const heading = makeElement("h4", "", title);
+    heading.tabIndex = -1;
+    section.append(heading, ...content);
     return section;
   };
   const section = (title, ...groups) => {
@@ -686,25 +790,28 @@ function buildCheatsheet() {
   $("cheatsheet-groups").replaceChildren(
     section(
       TENSES.present,
-      group(GROUPS.godan, buildGodanTable("present"), buildGodanExample(godan, "present"), note(shiftNote)),
+      group("cheat-present-godan", GROUPS.godan, buildGodanTable("present"), buildGodanExample(godan, "present"), note(shiftNote)),
       group(
+        "cheat-present-ichidan",
         GROUPS.ichidan,
         buildIchidanFormula(ichidan, "present"),
         note("帰る, 入る et 要る ressemblent à des ichidan, mais sont des godan."),
       ),
-      group(irregularTitle, buildIrregularTable(irregular, formIdsOf("present"))),
+      group("cheat-present-irregular", irregularTitle, buildIrregularTable(irregular, formIdsOf("present"))),
     ),
     section(
       TENSES.past,
       group(
+        "cheat-past-godan",
         GROUPS.godan,
         buildGodanTable("past"),
         buildGodanExample(godan, "past"),
         note(shiftNote),
         note("Après ぐ, ぬ, ぶ et む, た devient だ. Exception : 行く donne 行った."),
       ),
-      group(GROUPS.ichidan, buildIchidanFormula(ichidan, "past")),
+      group("cheat-past-ichidan", GROUPS.ichidan, buildIchidanFormula(ichidan, "past")),
       group(
+        "cheat-past-irregular",
         irregularTitle,
         buildIrregularTable(irregular, pastNeutral),
         buildIrregularTable(irregular, pastPolite),
@@ -713,13 +820,15 @@ function buildCheatsheet() {
     section(
       TENSES.te,
       group(
+        "cheat-te-godan",
         GROUPS.godan,
         buildGodanTable("te"),
         buildGodanExample(godan, "te"),
         note("Mêmes changements qu'au passé : après ぐ, ぬ, ぶ et む, て devient で. Exception : 行く donne 行って."),
       ),
-      group(GROUPS.ichidan, buildIchidanFormula(ichidan, "te")),
+      group("cheat-te-ichidan", GROUPS.ichidan, buildIchidanFormula(ichidan, "te")),
       group(
+        "cheat-te-irregular",
         irregularTitle,
         buildIrregularTable(irregular, formIdsOf("te")),
         note("ある et いる ne s'emploient pas à la forme 〜ている."),
@@ -728,6 +837,7 @@ function buildCheatsheet() {
     section(
       "Adjectifs",
       group(
+        "cheat-i-adj",
         GROUPS["i-adj"],
         buildAdjectiveTable(iAdjective),
         note("いい devient よ, sauf dans いいです : よくない, よかった, よくて."),
@@ -735,6 +845,7 @@ function buildCheatsheet() {
         note("Erreur classique : 高いでした. Le passé se met sur l'adjectif : 高かったです."),
       ),
       group(
+        "cheat-na-adj",
         GROUPS["na-adj"],
         buildAdjectiveTable(naAdjective),
         note("では peut remplacer じゃ, et 〜じゃないです ou 〜じゃなかったです existent aussi au poli."),
@@ -750,28 +861,34 @@ function toggleCheatsheet(open) {
   $("cards").hidden = open;
   $("cheatsheet-toggle").setAttribute("aria-expanded", String(open));
   $("cheatsheet-toggle").textContent = open ? "Fermer l'aide-mémoire" : "Aide-mémoire";
+  if (!open) $("cheatsheet-back").hidden = true;
+}
+
+// Opened from a missed card, the cheatsheet starts at the part about that card,
+// with a button pinned at the bottom to go back, since the header is scrolled away.
+function showCheatsheet(open, sectionId) {
+  toggleCheatsheet(open);
+  const section = open && sectionId ? $(sectionId) : null;
+  $("cheatsheet-back").hidden = !section;
+  if (section) {
+    section.scrollIntoView({ block: "start" });
+    section.querySelector("h4").focus({ preventScroll: true });
+    return;
+  }
+  window.scrollTo({ top: 0 });
+  if (open) $("cheatsheet-title").focus({ preventScroll: true });
+  else if (!$("drill").hidden) $("answer").focus({ preventScroll: true });
 }
 
 function wireCheatsheet() {
-  $("cheatsheet-toggle").addEventListener("click", () => {
-    const open = $("cheatsheet").hidden;
-    toggleCheatsheet(open);
-    window.scrollTo({ top: 0 });
-    if (open) $("cheatsheet-title").focus({ preventScroll: true });
-    else if (!$("drill").hidden) $("answer").focus({ preventScroll: true });
-  });
+  $("cheatsheet-toggle").addEventListener("click", () => showCheatsheet($("cheatsheet").hidden));
+  $("cheatsheet-back").addEventListener("click", () => showCheatsheet(false));
 }
 
 function wireEvents() {
   const input = $("answer");
   // WanaKana rewrites the value in its own listener, so measure just after it.
   input.addEventListener("input", () => setTimeout(fitAnswer));
-  // A tap on an already focused answer can reopen a keyboard that was put away.
-  input.addEventListener("focus", keepAnswerVisibleSoon);
-  input.addEventListener("click", keepAnswerVisibleSoon);
-  window.visualViewport?.addEventListener("resize", () => {
-    if (document.activeElement === input) keepAnswerVisible();
-  });
 
   $("answer-form").addEventListener("submit", (event) => {
     event.preventDefault();
@@ -789,6 +906,16 @@ function wireEvents() {
   $("settings-toggle").addEventListener("click", () => toggleSettings($("settings").hidden));
   $("set-details").addEventListener("change", (event) => {
     setDetail(event.target.value, event.target.checked);
+  });
+  $("vibrate-on").checked = settings.vibrate;
+  $("vibrate-on").addEventListener("change", (event) => {
+    settings.vibrate = event.target.checked;
+    saveSettings();
+  });
+  $("vibrate-test").addEventListener("click", () => {
+    $("vibrate-result").textContent = buzz()
+      ? "Ton téléphone devrait vibrer. S'il ne bouge pas, c'est l'appli qui affiche la page ou les réglages de vibration du téléphone qui la bloquent. Essaie d'ouvrir le lien dans Chrome."
+      : "Ce navigateur refuse de vibrer sur cette page.";
   });
   for (const key of ["palette", "font"]) {
     $(`set-${key}`).addEventListener("change", (event) => {
@@ -815,7 +942,12 @@ function wireEvents() {
     toggleSettings(false);
     startRound();
   });
-  $("again").addEventListener("click", startRound);
+  $("again").addEventListener("click", () => startRound());
+  $("review").addEventListener("click", reviewMistakes);
+  $("feedback").addEventListener("click", (event) => {
+    const section = event.target.closest(".cheat-link")?.dataset.section;
+    if (section) showCheatsheet(true, section);
+  });
 }
 
 async function main() {
@@ -835,7 +967,7 @@ async function main() {
   buildHitRays();
   buildSettings();
   wireEvents();
-  startRound();
+  if (!resumeRound()) startRound();
 }
 
 main();
