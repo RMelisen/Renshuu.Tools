@@ -189,16 +189,19 @@ function showNext() {
 
 // A detail hidden in Settings comes back once the card is answered, so the guess
 // can be checked. Concealing keeps its space, so the answer squares never jump.
+// The meaning is the exception: it can run several lines, and leaving them out lifts
+// the answer clear of a phone keyboard. It comes back above the answer once checked.
 function renderCue() {
   if (!round?.current) return;
   const { sub, subIsReading, defs, group } = round.current.cue;
-  const show = (id, text, wanted) => {
+  const show = (id, text, wanted, { collapse = false } = {}) => {
+    const concealed = !wanted && !round.answered;
     $(id).textContent = text;
-    $(id).hidden = !text;
-    $(id).classList.toggle("concealed", !wanted && !round.answered);
+    $(id).hidden = !text || (collapse && concealed);
+    $(id).classList.toggle("concealed", concealed);
   };
   show("verb-sub", sub, !subIsReading || settings.showReading);
-  show("verb-defs", defs, settings.showMeaning);
+  show("verb-defs", defs, settings.showMeaning, { collapse: true });
   show("verb-group", group, settings.showGroup);
   show("form-ending", round.current.prompt.ending, settings.showEnding);
 }
@@ -226,6 +229,29 @@ function setHint(message) {
 
 function fitAnswer() {
   $("answer").style.setProperty("--chars", Math.max(Array.from($("answer").value).length, 1));
+}
+
+// On a phone the keyboard covers the bottom of the page, and inside the artifact
+// frame the browser doesn't always scroll the answer clear of it. When the answer is
+// under the keyboard or off screen, bring it to the middle of what is still visible.
+// Where the visual viewport doesn't shrink for the keyboard, assume it takes the
+// lower 45%.
+function keepAnswerVisible() {
+  if (!matchMedia("(pointer: coarse)").matches || $("drill").hidden) return;
+  const view = window.visualViewport;
+  const top = view ? view.offsetTop : 0;
+  const height = view ? view.height : window.innerHeight;
+  const keyboardShrankView = view && view.height < window.innerHeight * 0.8;
+  const bottom = top + (keyboardShrankView ? height : height * 0.55);
+  const box = $("answer").getBoundingClientRect();
+  if (box.top >= top && box.bottom <= bottom) return;
+  const shift = box.top + box.height / 2 - (top + bottom) / 2;
+  window.scrollTo({ top: window.scrollY + shift, behavior: "smooth" });
+}
+
+// The keyboard slides in after focus, so check again once it has settled.
+function keepAnswerVisibleSoon() {
+  setTimeout(keepAnswerVisible, 350);
 }
 
 function renderStrip(target, withCurrent) {
@@ -740,6 +766,12 @@ function wireEvents() {
   const input = $("answer");
   // WanaKana rewrites the value in its own listener, so measure just after it.
   input.addEventListener("input", () => setTimeout(fitAnswer));
+  // A tap on an already focused answer can reopen a keyboard that was put away.
+  input.addEventListener("focus", keepAnswerVisibleSoon);
+  input.addEventListener("click", keepAnswerVisibleSoon);
+  window.visualViewport?.addEventListener("resize", () => {
+    if (document.activeElement === input) keepAnswerVisible();
+  });
 
   $("answer-form").addEventListener("submit", (event) => {
     event.preventDefault();

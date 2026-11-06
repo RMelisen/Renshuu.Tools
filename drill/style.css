@@ -105,6 +105,11 @@ fieldset { border: 0; min-width: 0; }
   gap: 1.25rem;
 }
 .app > * { min-width: 0; }
+/* Room below the card on touch screens, so the answer can scroll up above the
+   keyboard even when the page is shorter than the screen. */
+@media (pointer: coarse) {
+  .app:has(#drill:not([hidden])) { padding-bottom: 50vh; }
+}
 
 .bar { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: baseline; gap: 0 1rem; }
 .bar h1 { font-size: 1.25rem; line-height: 1.3; }
