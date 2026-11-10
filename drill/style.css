@@ -144,7 +144,7 @@ button { font: inherit; color: inherit; cursor: pointer; }
 }
 .settings fieldset { display: flex; flex-wrap: wrap; gap: 0.25rem 1.25rem; }
 .settings legend { font-weight: var(--strong); padding: 0 0 0.25rem; }
-.settings .set-tense { flex-basis: 100%; }
+.settings .set-tense, #set-kinds .check { flex-basis: 100%; }
 .settings .set-tense legend { color: var(--soft); font-size: 0.875rem; font-weight: var(--regular); padding: 0.25rem 0 0; }
 .check { display: inline-flex; align-items: center; gap: 0.5rem; min-height: 2.25rem; cursor: pointer; }
 .check input { accent-color: var(--ink); width: 1.1rem; height: 1.1rem; margin: 0; }
@@ -285,6 +285,22 @@ button { font: inherit; color: inherit; cursor: pointer; }
   font: var(--strong) max(1rem, min(clamp(1.125rem, 7cqw, 1.75rem), calc((100cqw - 2.2rem) / var(--chars, 1))))/1.25 var(--type);
 }
 #answer.struck { text-decoration: line-through; }
+/* Naming the form: one button per form, two columns even on a phone. */
+.choices { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(9rem, 40%), 1fr)); gap: 0.5rem; }
+.choice {
+  min-height: 2.75rem;
+  padding: 0.3rem 0.75rem;
+  background: var(--ground);
+  border: 2px solid var(--ink);
+  border-radius: 1.4rem;
+  font-size: 0.9375rem;
+  line-height: 1.2;
+  word-break: keep-all; /* "Forme en ている" breaks before ている, not inside it */
+}
+.choice:hover:not(:disabled) { background: var(--pill); color: var(--on-pill); }
+.choice:disabled { cursor: default; border-color: var(--faded); color: var(--soft); }
+.choice.right { background: var(--pill); border-color: var(--pill); color: var(--on-pill); }
+.choice.picked { border-color: var(--fix); color: var(--fix); text-decoration: line-through; }
 
 /* Feedback */
 .feedback { display: grid; gap: 0.15rem; }
@@ -306,6 +322,7 @@ mark.diff {
 .french { font-size: 1.125rem; }
 .french::first-letter { text-transform: uppercase; }
 .rule { color: var(--soft); }
+.note { color: var(--soft); }
 .hint { color: var(--soft); font-size: 0.875rem; }
 .hint.pen { color: var(--fix); }
 

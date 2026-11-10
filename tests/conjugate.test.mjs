@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { existsSync, readFileSync } from "node:fs";
 import { test } from "node:test";
-import { CHEATSHEET, conjugate, findMistake, FORMS, groupOf, hasForm, isCorrect, splitEnding } from "../drill/conjugate.js";
+import { CHEATSHEET, conjugate, findDictionaryMistake, findMistake, FORMS, formsWithSpelling, groupOf, hasForm, isCorrect, isDictionaryForm, splitEnding } from "../drill/conjugate.js";
 
 const verb = (kanji, reading, cls) => ({ kanji, reading, class: cls });
 
@@ -340,6 +340,51 @@ test("a wrong answer is compared with the closest accepted spelling", () => {
   assert.equal(findMistake(verb("", "コピーする", "suru"), "polite-affirmative", "こぴーしまう").form, "コピーします");
 });
 
+// Reverse cards: the learner sees a conjugated form and names where it came from.
+test("the dictionary form is accepted in kana or kanji", () => {
+  const kaeru = verb("帰る", "かえる", "godan-る");
+  assert.ok(isDictionaryForm([kaeru], "かえる"));
+  assert.ok(isDictionaryForm([kaeru], " 帰る。"));
+  assert.ok(!isDictionaryForm([kaeru], "かえった"));
+  assert.ok(!isDictionaryForm([kaeru], "かう"));
+  assert.ok(!isDictionaryForm([kaeru], ""));
+});
+
+test("a な adjective is accepted with or without な, a noun + する only with する", () => {
+  const shizuka = verb("静か", "しずか", "na-adj");
+  assert.ok(isDictionaryForm([shizuka], "しずか"));
+  assert.ok(isDictionaryForm([shizuka], "静かな"));
+  const ryouri = verb("料理する", "りょうりする", "suru-noun");
+  assert.ok(isDictionaryForm([ryouri], "料理する"));
+  assert.ok(!isDictionaryForm([ryouri], "料理"));
+});
+
+test("a form two words share accepts either word", () => {
+  const iku = verb("行く", "いく", "godan-く");
+  const iu = verb("言う", "いう", "godan-う");
+  assert.equal(conjugate(iku, "plain-past").kana, conjugate(iu, "plain-past").kana);
+  assert.ok(isDictionaryForm([iku, iu], "いく"));
+  assert.ok(isDictionaryForm([iku, iu], "いう"));
+});
+
+test("a wrong dictionary form points at the part that differs", () => {
+  const kaeru = verb("帰る", "かえる", "godan-る");
+  assert.deepEqual(findDictionaryMistake(kaeru, "かえう"), {
+    form: "かえる", before: "かえ", wrote: "う", expected: "る", after: "",
+  });
+  assert.equal(findDictionaryMistake(kaeru, "帰る"), null);
+});
+
+test("a conjugated form is named by the form that builds it", () => {
+  const all = Object.keys(FORMS);
+  const kaku = verb("書く", "かく", "godan-く");
+  assert.deepEqual(formsWithSpelling(kaku, "書かなかった", all), ["plain-past-negative"]);
+  assert.deepEqual(formsWithSpelling(kaku, "かいています", all), []);
+  assert.deepEqual(formsWithSpelling(verb("高い", "たかい", "i-adj"), "たかくありません", all), ["polite-negative"]);
+  assert.deepEqual(formsWithSpelling(verb("静か", "しずか", "na-adj"), "静かではない", all), ["plain-negative"]);
+  assert.deepEqual(formsWithSpelling(kaku, "かいた", ["te", "te-iru"]), []);
+});
+
 test("ある counts as irregular for filtering", () => {
   assert.equal(groupOf(verb("有る", "ある", "godan-る")), "irregular");
   assert.equal(groupOf(verb("帰る", "かえる", "godan-る")), "godan");
@@ -413,6 +458,20 @@ test("every generated verb yields all forms", { skip: !existsSync(data) && "verb
       const { kana, rule } = conjugate(v, formId);
       assert.ok(kana && rule, `${v.reading} ${formId}`);
       assert.ok(!kana.includes("undefined"), `${v.reading} ${formId}: ${kana}`);
+    }
+  }
+});
+
+test("every generated word's forms read back to that word and that form", { skip: !existsSync(data) && "verbs.json not generated" }, () => {
+  const verbs = JSON.parse(readFileSync(data, "utf-8"));
+  for (const v of verbs) {
+    const formIds = Object.keys(FORMS).filter((id) => hasForm(v, id));
+    assert.ok(isDictionaryForm([v], v.kanji || v.reading), v.reading);
+    for (const formId of formIds) {
+      const { kana, kanji } = conjugate(v, formId);
+      for (const shown of [kana, kanji].filter(Boolean)) {
+        assert.deepEqual(formsWithSpelling(v, shown, formIds), [formId], `${v.reading} ${formId}`);
+      }
     }
   }
 });

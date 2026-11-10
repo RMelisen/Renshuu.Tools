@@ -18,6 +18,7 @@
   </header>
 
   <form id="settings" class="settings" hidden>
+    <fieldset id="set-kinds"><legend>Cartes</legend></fieldset>
     <fieldset id="set-forms"><legend>Formes</legend></fieldset>
     <fieldset id="set-groups"><legend>Groupes de mots</legend></fieldset>
     <fieldset id="set-length"><legend>Cartes par manche</legend></fieldset>
@@ -35,7 +36,7 @@
       </fieldset>
       <p id="vibrate-result" class="hint" role="status"></p>
     </div>
-    <p id="settings-error" class="pen" role="alert" hidden>Choisis au moins une forme et un groupe de mots qui vont ensemble.</p>
+    <p id="settings-error" class="pen" role="alert" hidden>Choisis au moins une sorte de carte, une forme et un groupe de mots qui vont ensemble. Pour nommer la forme, il en faut au moins deux.</p>
     <div class="actions"><button type="submit" class="solid" id="settings-start">Commencer une nouvelle manche</button></div>
   </form>
 
@@ -79,6 +80,7 @@
         </label>
 
         <input id="answer" type="text" lang="ja" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" enterkeyhint="done">
+        <div id="choices" class="choices" role="group" aria-labelledby="form-label" hidden></div>
 
         <div id="feedback" class="feedback" role="status" aria-live="polite"></div>
 

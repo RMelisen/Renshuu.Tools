@@ -242,11 +242,46 @@ export function isCorrect(verb, formId, answer) {
 // typed in place of `expected`, between the shared `before` and `after`. Returns
 // null for a right answer, or when the two share nothing to point from.
 export function findMistake(verb, formId, answer) {
-  const given = Array.from(normalize(answer));
   const { kana, kanji, alternatives = [] } = conjugate(verb, formId);
+  return closestMistake([kana, kanji, ...alternatives], answer);
+}
+
+// Reverse cards show a conjugated form and ask where it came from.
+
+// How a word is written in the dictionary. A な adjective is accepted with its な.
+function dictionarySpellings(word) {
+  const spellings = [word.reading, word.kanji].filter(Boolean);
+  if (word.class === "na-adj") return [...spellings, ...spellings.map((s) => `${s}な`)];
+  return spellings;
+}
+
+// `words` are every word whose form looks like the one shown: いった comes from
+// 行く or 言う when it is shown in kana, so both are right.
+export function isDictionaryForm(words, answer) {
+  const given = normalize(answer);
+  return Boolean(given) && words.some((word) => dictionarySpellings(word).some((s) => given === normalize(s)));
+}
+
+export function findDictionaryMistake(word, answer) {
+  return closestMistake(dictionarySpellings(word), answer);
+}
+
+// The forms among `formIds` that write this word as `shown`. Usually one; the
+// drill accepts any of them.
+export function formsWithSpelling(word, shown, formIds) {
+  const target = normalize(shown);
+  return formIds.filter((formId) => {
+    if (!hasForm(word, formId)) return false;
+    const { kana, kanji, alternatives = [] } = conjugate(word, formId);
+    return [kana, kanji, ...alternatives].some((form) => form && normalize(form) === target);
+  });
+}
+
+function closestMistake(spellings, answer) {
+  const given = Array.from(normalize(answer));
   let best = null;
-  for (const form of [kana, kanji, ...alternatives]) {
-    if (form === null) continue;
+  for (const form of spellings) {
+    if (!form) continue;
     const folded = Array.from(normalize(form));
     const chars = Array.from(form).length === folded.length ? Array.from(form) : folded;
     let start = 0;

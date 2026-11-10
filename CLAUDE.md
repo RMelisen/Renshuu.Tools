@@ -52,7 +52,8 @@ python -m http.server 8765 --directory drill
 - To add a form, add one entry to `FORMS` in `drill/conjugate.js` and rows to the table in the tests. The た and て forms use the `ta` base in `GODAN_ROWS`, with their voiced ending in `voiced` and the 行く exception handled in `godan()`.
 - Use `hasForm` for a word that doesn't take a form: ある, いる and adjectives have no ている, and 無い has no negative. Cards skip it and the cheatsheet shows a dash.
 - Adjectives share the form ids in `FORMS`, with their endings in `I_ADJECTIVE` and `NA_ADJECTIVE`. `also` lists other correct answers, like では for じゃ.
-- A new form is switched on for returning visitors through `seenForms` in saved settings. Settings and the cheatsheet group forms by their `tense`, so check them at phone width after adding one.
+- Cards come in the kinds listed in `KINDS` in `drill/app.js`: conjugate, find the dictionary form, and name the form. The reverse kinds show the conjugated form. A name-the-form card has `choices` and is answered with buttons, and needs at least two forms switched on. A reverse card accepts every word whose form is spelled like the one shown, and every form that spells it, so check `formsWithSpelling` when adding a form.
+- A new form is switched on for returning visitors through `seenForms` in saved settings, and a new card kind through `seenKinds`. Settings and the cheatsheet group forms by their `tense`, so check them at phone width after adding one.
 
 ## Publishing the drill
 

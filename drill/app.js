@@ -1,4 +1,4 @@
-import { CHEATSHEET, conjugate, findMistake, FORMS, GODAN_ROWS, GROUPS, groupOf, hasForm, isCorrect, normalize, splitEnding } from "./conjugate.js";
+import { CHEATSHEET, conjugate, findDictionaryMistake, findMistake, FORMS, formsWithSpelling, GODAN_ROWS, GROUPS, groupOf, hasForm, isCorrect, isDictionaryForm, normalize, splitEnding } from "./conjugate.js";
 import { translate } from "./french.js";
 
 // index.html has no <html> tag of its own: publishing wraps it in a skeleton.
@@ -8,7 +8,14 @@ const STORAGE_KEY = "doshi-drill-settings";
 // The forms that existed before saved settings recorded which forms they had seen.
 const FIRST_FORMS = ["plain-negative", "polite-affirmative", "polite-negative"];
 const FIRST_GROUPS = ["godan", "ichidan", "irregular", "suru-noun"];
+// What a card asks. The reverse kinds show a conjugated form, to train reading.
+const KINDS = {
+  conjugate: { text: "Conjuguer", example: "書く → 書かない" },
+  dictionary: { text: "Retrouver le dictionnaire", example: "書かない → 書く" },
+  "name-form": { text: "Nommer la forme", example: "書かない → Présent neutre négatif" },
+};
 const DEFAULTS = {
+  kinds: Object.keys(KINDS),
   forms: Object.keys(FORMS),
   groups: Object.keys(GROUPS),
   length: 20,
@@ -69,9 +76,11 @@ function loadSettings() {
     ];
     merged.forms = withNew(merged.forms, FORMS, saved.seenForms ?? FIRST_FORMS);
     merged.groups = withNew(merged.groups, GROUPS, saved.seenGroups ?? FIRST_GROUPS);
+    // Settings saved before reverse cards had only forward ones.
+    merged.kinds = withNew(saved.kinds ?? ["conjugate"], KINDS, saved.seenKinds ?? ["conjugate"]);
     if (!PALETTES[merged.palette]) merged.palette = DEFAULTS.palette;
     if (!FONTS[merged.font]) merged.font = DEFAULTS.font;
-    return merged.forms.length && merged.groups.length ? merged : { ...DEFAULTS };
+    return merged.forms.length && merged.groups.length && merged.kinds.length ? merged : { ...DEFAULTS };
   } catch {
     return { ...DEFAULTS };
   }
@@ -83,6 +92,7 @@ function saveSettings() {
       ...settings,
       seenForms: Object.keys(FORMS),
       seenGroups: Object.keys(GROUPS),
+      seenKinds: Object.keys(KINDS),
     }));
   } catch {
     // Settings then last for this visit only.
@@ -103,9 +113,11 @@ function shuffle(items) {
   return list;
 }
 
-// What one card asks. A reverse mode would be another function returning this
-// same shape, with no change to the card flow below.
-function makeExercise(verb, formId) {
+// What one card asks. Every kind returns the same shape, so the card flow below
+// doesn't change with it. A card with `choices` is answered with a button.
+function makeExercise(verb, formId, kind = "conjugate") {
+  if (kind === "dictionary") return makeDictionaryCard(verb, formId);
+  if (kind === "name-form") return makeNameFormCard(verb, formId);
   const form = FORMS[formId];
   const result = conjugate(verb, formId);
   const kanaLead = verb.kanaFirst || !verb.kanji;
@@ -113,6 +125,7 @@ function makeExercise(verb, formId) {
   return {
     verbId: verb.id,
     formId,
+    kind,
     cheatSection: cheatSectionId(verb, formId),
     prompt: { label: form.label, ending: result.ending ?? form.ending },
     cue: {
@@ -133,6 +146,79 @@ function makeExercise(verb, formId) {
   };
 }
 
+// Reverse cards show the conjugated form where the forward card shows the word,
+// written in kanji unless the word is usually written in kana.
+function reverseCard(verb, formId, kind) {
+  const result = conjugate(verb, formId);
+  const kanaLead = verb.kanaFirst || !result.kanji;
+  const shown = kanaLead ? result.kana : result.kanji;
+  return {
+    verbId: verb.id,
+    formId,
+    kind,
+    shown,
+    cheatSection: cheatSectionId(verb, formId),
+    cue: {
+      main: shown,
+      sub: kanaLead ? result.kanji || "" : result.kana,
+      subIsReading: !kanaLead,
+      defs: verb.defs.join(" ; "),
+      group: GROUPS[groupOf(verb)],
+    },
+    rule: result.rule,
+    mistake: () => null,
+  };
+}
+
+const dictionaryWriting = (verb) => (verb.kanaFirst || !verb.kanji
+  ? { main: verb.reading, sub: verb.kanji }
+  : { main: verb.kanji, sub: verb.reading });
+
+// Every word whose form is written like the one shown: いった in kana could come
+// from 行く or 言う, so either is right.
+function lookalikes(verb, formId, shown) {
+  return verbs.filter((v) => v === verb || formsWithSpelling(v, shown, [formId]).length);
+}
+
+function makeDictionaryCard(verb, formId) {
+  const card = reverseCard(verb, formId, "dictionary");
+  return {
+    ...card,
+    prompt: { label: "Forme du dictionnaire ?", ending: "" },
+    answer: {
+      ...dictionaryWriting(verb),
+      french: translate(verb, formId),
+      note: `${card.shown} : ${FORMS[formId].label.toLowerCase()}`,
+    },
+    check: (given) => isDictionaryForm(lookalikes(verb, formId, card.shown), given),
+    mistake: (given) => findDictionaryMistake(verb, given),
+  };
+}
+
+// The forms a word can be asked to name: those switched on in Settings that the
+// word takes, plus the card's own form if Settings changed since.
+function choicesFor(verb, formId) {
+  return Object.keys(FORMS).filter((id) => (settings.forms.includes(id) || id === formId) && hasForm(verb, id));
+}
+
+function makeNameFormCard(verb, formId) {
+  const card = reverseCard(verb, formId, "name-form");
+  const choices = choicesFor(verb, formId);
+  return {
+    ...card,
+    choices,
+    prompt: { label: "Quelle est cette forme ?", ending: "" },
+    answer: {
+      main: FORMS[formId].label,
+      sub: conjugate(verb, formId).ending ?? FORMS[formId].ending,
+      lang: "fr",
+      french: translate(verb, formId),
+      note: `Forme du dictionnaire : ${dictionaryWriting(verb).main}`,
+    },
+    check: (given) => formsWithSpelling(verb, card.shown, choices).includes(given),
+  };
+}
+
 // The cheatsheet part that explains a card: adjectives have their own, verbs sit
 // under the card's tense. Irregular verbs and noun + する share a table.
 function cheatSectionId(verb, formId) {
@@ -143,21 +229,25 @@ function cheatSectionId(verb, formId) {
 }
 
 // A card is saved by what it asks, and rebuilt from the verb list on load.
-const cardRef = ({ verbId, formId, slot, retry }) => ({ verbId, formId, slot, retry });
+const cardRef = ({ verbId, formId, kind, slot, retry }) => ({ verbId, formId, kind, slot, retry });
 
-function cardFromRef({ verbId, formId, slot, retry }) {
+// Rounds saved before reverse cards had no kind: they were all forward cards.
+function cardFromRef({ verbId, formId, kind = "conjugate", slot, retry }) {
   const verb = verbs.find((v) => v.id === verbId);
-  if (!verb || !FORMS[formId] || !hasForm(verb, formId)) return null;
-  return { ...makeExercise(verb, formId), slot, retry: Boolean(retry) };
+  if (!verb || !FORMS[formId] || !KINDS[kind] || !hasForm(verb, formId)) return null;
+  return { ...makeExercise(verb, formId, kind), slot, retry: Boolean(retry) };
 }
 
 // Each verb appears once before any verb repeats, and a repeated verb gets a
 // different form, so a round never asks the same card twice. A verb skips forms
-// it doesn't have: ある has no ている.
+// it doesn't have: ある has no ている. Kinds take turns, and naming the form
+// needs at least two forms to choose from.
 function buildCards() {
   const forms = shuffle(settings.forms);
   const formsOf = (verb) => forms.filter((id) => hasForm(verb, id));
-  const pool = shuffle(verbs.filter((v) => settings.groups.includes(groupOf(v)) && formsOf(v).length));
+  const kinds = shuffle(settings.kinds);
+  const kindsOf = (verb) => kinds.filter((kind) => kind !== "name-form" || formsOf(verb).length > 1);
+  const pool = shuffle(verbs.filter((v) => settings.groups.includes(groupOf(v)) && formsOf(v).length && kindsOf(v).length));
   const available = pool.reduce((sum, verb) => sum + formsOf(verb).length, 0);
   const total = Math.min(settings.length, available);
   const asked = new Set();
@@ -171,7 +261,9 @@ function buildCards() {
       .find((id) => hasForm(verb, id) && !asked.has(`${verb.id}/${id}`));
     if (!formId) continue;
     asked.add(`${verb.id}/${formId}`);
-    cards.push({ ...makeExercise(verb, formId), slot: cards.length, retry: false });
+    const options = kindsOf(verb);
+    const kind = options[cards.length % options.length];
+    cards.push({ ...makeExercise(verb, formId, kind), slot: cards.length, retry: false });
   }
   return cards;
 }
@@ -249,18 +341,43 @@ function showNext() {
   $("retry-tag").hidden = !card.retry;
 
   const input = $("answer");
+  const choosing = Boolean(card.choices);
+  input.hidden = choosing;
   input.readOnly = false;
   input.value = "";
   input.classList.remove("struck");
   fitAnswer();
+  renderChoices(card);
   delete $("drill").dataset.result;
   $("feedback").replaceChildren();
   $("primary").textContent = "Vérifier";
+  $("primary").hidden = choosing;
   $("reveal").hidden = false;
   setHint();
   renderProgress();
   saveRound();
-  input.focus({ preventScroll: true });
+  if (!choosing) input.focus({ preventScroll: true });
+}
+
+// A card that names the form is answered by tapping one, so no keyboard opens.
+function renderChoices(card) {
+  $("choices").hidden = !card.choices;
+  $("choices").replaceChildren(...(card.choices ?? []).map((formId) => {
+    const button = makeElement("button", "choice", FORMS[formId].label);
+    button.type = "button";
+    button.value = formId;
+    return button;
+  }));
+}
+
+// After the answer, the right form is marked, and the one tapped if it was wrong.
+function markChoices(card, given) {
+  for (const button of $("choices").children) {
+    const right = card.check(button.value);
+    button.disabled = true;
+    button.classList.toggle("right", right);
+    button.classList.toggle("picked", button.value === given && !right);
+  }
 }
 
 // A detail hidden in Settings comes back once the card is answered, so the guess
@@ -373,7 +490,8 @@ function playHit(result) {
   const panel = $("drill");
   const panelTop = panel.getBoundingClientRect().top + panel.clientTop;
   panel.style.setProperty("--word-settle", `${middle($("primary")) - panelTop}px`);
-  panel.style.setProperty("--word-rise", `${middle($("answer")) - middle($("primary"))}px`);
+  const answer = $("answer").hidden ? $("choices") : $("answer");
+  panel.style.setProperty("--word-rise", `${middle(answer) - middle($("primary"))}px`);
   panel.dataset.result = result;
 }
 
@@ -383,15 +501,18 @@ function toKana(raw) {
   return wanakana ? wanakana.toHiragana(raw) : raw;
 }
 
-function grade({ gaveUp }) {
+// `choice` is the form tapped on a card that names the form.
+function grade({ gaveUp, choice }) {
   const card = round.current;
   const input = $("answer");
-  const given = gaveUp ? "" : toKana(input.value);
+  const choosing = Boolean(card.choices);
+  const given = gaveUp ? "" : choosing ? choice : toKana(input.value);
   const right = !gaveUp && card.check(given);
 
   round.answered = true;
-  input.value = given;
+  input.value = choosing ? "" : given;
   input.readOnly = true;
+  if (choosing) markChoices(card, given);
 
   if (!card.retry) {
     round.results[card.slot] = right ? "right" : "missed";
@@ -408,10 +529,13 @@ function grade({ gaveUp }) {
   input.classList.toggle("struck", !right && !gaveUp);
   renderFeedback(card, right, gaveUp, given);
   $("primary").textContent = round.queue.length ? "Suivant" : "Voir les résultats";
+  $("primary").hidden = false;
   $("reveal").hidden = true;
   $("hint").hidden = true;
   renderProgress();
   saveRound();
+  // Enter then moves on, as it does after typing.
+  if (choosing) $("primary").focus({ preventScroll: true });
   if (gaveUp) return;
   playHit(right ? "right" : "missed");
   if (!right && settings.vibrate) buzz();
@@ -457,10 +581,11 @@ function renderFeedback(card, right, gaveUp, given) {
 
   const correction = document.createElement("p");
   correction.className = "correction";
-  correction.lang = "ja";
+  correction.lang = card.answer.lang ?? "ja";
   correction.append(...spelling(card.answer.main, mistake));
   if (card.answer.sub) {
     const small = document.createElement("small");
+    small.lang = "ja";
     small.append(...spelling(card.answer.sub, mistake));
     correction.append(small);
   }
@@ -471,6 +596,12 @@ function renderFeedback(card, right, gaveUp, given) {
 
   $("feedback").replaceChildren(verdict, correction);
   if (mistake) $("feedback").append(describeMistake(mistake));
+  if (card.choices && !right && !gaveUp) {
+    $("feedback").append(makeElement("p", "mistake", `Tu as choisi ${givenText(card, given)}.`));
+  }
+  if (card.answer.note) {
+    $("feedback").append(makeElement("p", "note", card.answer.note));
+  }
   if (card.answer.french) {
     const french = document.createElement("p");
     french.className = "french";
@@ -485,6 +616,9 @@ function renderFeedback(card, right, gaveUp, given) {
     $("feedback").append(link);
   }
 }
+
+// What the learner answered, in words: a tapped form is shown by its name.
+const givenText = (card, given) => (card.choices ? FORMS[given]?.label.toLowerCase() ?? given : given);
 
 function showSummary() {
   const score = round.results.filter((result) => result === "right").length;
@@ -521,7 +655,9 @@ function showSummary() {
     form.textContent = card.answer.main;
     const wrote = document.createElement("p");
     wrote.className = "wrote";
-    wrote.textContent = given ? `Tu as écrit ${given}` : "Tu as choisi Voir la réponse";
+    if (!given) wrote.textContent = "Tu as choisi Voir la réponse";
+    else if (card.choices) wrote.textContent = `Tu as choisi ${givenText(card, given)}`;
+    else wrote.textContent = `Tu as écrit ${given}`;
     right.append(form, wrote);
 
     row.append(left, right);
@@ -552,6 +688,14 @@ function buildChoice(container, { type, name, value, checked, text, count }) {
 }
 
 function buildSettings() {
+  for (const [id, { text, example }] of Object.entries(KINDS)) {
+    const label = buildChoice($("set-kinds"), {
+      type: "checkbox", name: "kind", value: id, checked: settings.kinds.includes(id), text,
+    });
+    const sample = makeElement("span", "count", example);
+    sample.lang = "ja";
+    label.append(sample);
+  }
   for (const [tense, title] of Object.entries(TENSES)) {
     const section = makeElement("fieldset", "set-tense");
     section.append(makeElement("legend", "", title));
@@ -900,7 +1044,11 @@ function wireEvents() {
   });
   $("reveal").addEventListener("click", () => {
     grade({ gaveUp: true });
-    input.focus({ preventScroll: true });
+    if (!round.current.choices) input.focus({ preventScroll: true });
+  });
+  $("choices").addEventListener("click", (event) => {
+    const choice = event.target.closest(".choice")?.value;
+    if (choice && !round.answered) grade({ gaveUp: false, choice });
   });
 
   $("settings-toggle").addEventListener("click", () => toggleSettings($("settings").hidden));
@@ -932,12 +1080,18 @@ function wireEvents() {
   });
   $("settings").addEventListener("submit", (event) => {
     event.preventDefault();
+    const kinds = readChoices("kind");
     const forms = readChoices("form");
     const groups = readChoices("group");
-    const hasVerbs = verbs.some((v) => groups.includes(groupOf(v)) && forms.some((id) => hasForm(v, id)));
-    $("settings-error").hidden = Boolean(forms.length && hasVerbs);
-    if (!forms.length || !hasVerbs) return;
-    settings = { ...settings, forms, groups, length: Number(readChoices("length")[0]) };
+    // Naming the form needs two forms to choose from.
+    const fits = (v) => {
+      const count = forms.filter((id) => hasForm(v, id)).length;
+      return count && kinds.some((kind) => kind !== "name-form" || count > 1);
+    };
+    const hasVerbs = verbs.some((v) => groups.includes(groupOf(v)) && fits(v));
+    $("settings-error").hidden = hasVerbs;
+    if (!hasVerbs) return;
+    settings = { ...settings, kinds, forms, groups, length: Number(readChoices("length")[0]) };
     saveSettings();
     toggleSettings(false);
     startRound();
